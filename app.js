@@ -1013,8 +1013,8 @@ async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, 
     Clean manga style, bold outlines, cel-shaded coloring, expressive anime-style cat faces.
     Panel-style composition${dogNote}. Chinese comic aesthetic, warm lighting, high detail.`;
 
-  // Try the local Hermes gateway (port 18789)
-  const gatewayUrl = 'http://localhost:18789/v1/images/generations';
+  // Try the local Hermes gateway (API server runs on port 8642)
+  const gatewayUrl = 'http://localhost:8642/v1/images/generations';
 
   const response = await fetch(gatewayUrl, {
     method: 'POST',
