@@ -22,6 +22,17 @@
         <small>支持 JPG、PNG、WebP 等常见图片格式</small>
       </label>
 
+      <div class="filter-panel">
+        <div>
+          <h2>一键 INS 猫咪阳光滤镜</h2>
+          <p>明亮、温暖、日系高光，为白猫、橘猫、三花保留毛色层次并增加柔和暖光。</p>
+        </div>
+        <label class="filter-toggle">
+          <input id="filterToggle" type="checkbox" checked />
+          <span>套用猫咪专属高光暖色调</span>
+        </label>
+      </div>
+
       <div class="actions">
         <button id="cutButton" disabled>切成九宫格</button>
         <button id="downloadAllButton" class="secondary" disabled>下载全部</button>
@@ -30,7 +41,7 @@
 
     <section class="workspace">
       <div class="panel preview-card">
-        <h2>原图预览</h2>
+        <h2>原图预览 <span id="filterBadge" class="filter-badge active">INS 暖阳滤镜已开启</span></h2>
         <canvas id="previewCanvas" width="600" height="600"></canvas>
       </div>
 
