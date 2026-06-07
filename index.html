@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>猫咪九宫格切图</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="app">
+    <section class="hero">
+      <div class="badge">🐾 Cat Grid Cutter</div>
+      <h1>猫咪九宫格切图</h1>
+      <p>上传一张猫咪照片，一键切成朋友圈/小红书常用的 3 × 3 九宫格图片。</p>
+    </section>
+
+    <section class="panel uploader">
+      <label class="drop-zone" id="dropZone">
+        <input id="fileInput" type="file" accept="image/*" />
+        <span class="cat-face">🐱</span>
+        <strong>点击或拖拽上传猫咪图片</strong>
+        <small>支持 JPG、PNG、WebP 等常见图片格式</small>
+      </label>
+
+      <div class="actions">
+        <button id="cutButton" disabled>切成九宫格</button>
+        <button id="downloadAllButton" class="secondary" disabled>下载全部</button>
+      </div>
+    </section>
+
+    <section class="workspace">
+      <div class="panel preview-card">
+        <h2>原图预览</h2>
+        <canvas id="previewCanvas" width="600" height="600"></canvas>
+      </div>
+
+      <div class="panel grid-card">
+        <h2>九宫格结果</h2>
+        <div id="grid" class="grid empty">
+          <p>上传图片后，这里会显示 9 张切图。</p>
+        </div>
+      </div>
+    </section>
+
+    <footer>
+      Made for cute cats · 纯前端运行，不会上传你的图片
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
