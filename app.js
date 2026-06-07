@@ -443,5 +443,362 @@ dropZone.addEventListener('drop', event => {
   loadImage(event.dataTransfer.files[0]);
 });
 
+// ========== Tab Navigation ==========
+const navTabs = document.getElementById('navTabs');
+const tabBtns = navTabs?.querySelectorAll('.tab-btn');
+const tabPanels = document.querySelectorAll('.tab-panel');
+
+tabBtns?.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tabId = btn.dataset.tab;
+    // Update buttons
+    tabBtns.forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    // Update panels
+    tabPanels.forEach(panel => {
+      panel.classList.remove('active');
+      if (panel.id === `tab-${tabId}`) {
+        panel.classList.add('active');
+      }
+    });
+  });
+});
+
+// ========== 甄嬛传剧本生成器 ==========
+const catCountRadios = document.querySelectorAll('input[name="catCount"]');
+const catInputsContainer = document.getElementById('catInputs');
+const catTraitsContainer = document.getElementById('catTraits');
+const generateBtn = document.getElementById('generateBtn');
+const copyBtn = document.getElementById('copyBtn');
+const regenerateBtn = document.getElementById('regenerateBtn');
+const outputContent = document.getElementById('outputContent');
+const outputEmpty = document.querySelector('.output-empty');
+
+// Cat character templates for different numbers
+const catCharacterData = {
+  2: {
+    roles: [
+      { title: '贵妃', suffix: '娘娘' },
+      { title: '答应', suffix: '妹妹' }
+    ],
+    palaceNames: ['储秀宫', '延禧宫'],
+    conflicts: [
+      '争宠夺食', '抢地盘', '争宠'
+    ]
+  },
+  3: {
+    roles: [
+      { title: '皇后', suffix: '娘娘' },
+      { title: '贵妃', suffix: '娘娘' },
+      { title: '常在', suffix: '妹妹' }
+    ],
+    palaceNames: ['坤宁宫', '储秀宫', '延禧宫'],
+    conflicts: ['争宠夺食', '三方角力', '结盟互撕']
+  },
+  4: {
+    roles: [
+      { title: '皇后', suffix: '娘娘' },
+      { title: '贵妃', suffix: '娘娘' },
+      { title: '嫔妃', suffix: '娘娘' },
+      { title: '答应', suffix: '妹妹' }
+    ],
+    palaceNames: ['坤宁宫', '储秀宫', '承乾宫', '延禧宫'],
+    conflicts: ['后宫争锋', '两派对立', '争宠夺食']
+  },
+  5: {
+    roles: [
+      { title: '皇后', suffix: '娘娘' },
+      { title: '贵妃', suffix: '娘娘' },
+      { title: '贵妃', suffix: '娘娘' },
+      { title: '嫔妃', suffix: '娘娘' },
+      { title: '答应', suffix: '妹妹' }
+    ],
+    palaceNames: ['坤宁宫', '储秀宫', '承乾宫', '钟粹宫', '延禧宫'],
+    conflicts: ['后宫大乱', '五方混战', '争宠夺食']
+  },
+  6: {
+    roles: [
+      { title: '皇后', suffix: '娘娘' },
+      { title: '贵妃', suffix: '娘娘' },
+      { title: '贵妃', suffix: '娘娘' },
+      { title: '嫔妃', suffix: '娘娘' },
+      { title: '嫔妃', suffix: '娘娘' },
+      { title: '答应', suffix: '妹妹' }
+    ],
+    palaceNames: ['坤宁宫', '储秀宫', '承乾宫', '钟粹宫', '延禧宫', '景仁宫'],
+    conflicts: ['六宫大乱', '后宫大乱斗', '争宠夺食']
+  }
+};
+
+const dogCharacterData = {
+  titles: ['御前侍卫大将军', '大黄侍卫', '皇家猎犬', '御前带刀侍卫'],
+  insults: ['你这没毛的', '粗鄙之物', '也敢在我面前放肆', '一条狗也配']
+};
+
+const palaceLifeDetails = [
+  '每日清晨第一件事就是去猫爬架最高处巡视自己的领地',
+  '饭点一到，准时在主人脚边用尾巴画符，不伺候就绝食',
+  '午睡时喜欢把最暖和的纸箱据为己有',
+  '深夜跑酷是宫廷夜巡的暗号',
+  '对自动喂食器有执念，坚信那是新来的太监',
+  '看到吸尘器就炸毛，认为是敌国入侵',
+  '喜欢在键盘上踩奶，美其名曰批阅奏折',
+  '对逗猫棒有复杂的感情，又爱又恨',
+  '喜欢闻新拆封的快递，说是探查敌情',
+  '在猫砂盆里埋东西的姿势特别庄严，像是在封印什么',
+  '看到窗外的鸟就喵个不停，说是边疆不稳',
+  '喜欢跳上柜子最高层俯视众生',
+  '对透明水杯有执念，喜欢把杯子推下去验证重力',
+  '闻到猫条的香味能在一秒之内瞬移到位',
+  '喜欢在主人的枕头边上蹭来蹭去，说是留下自己的印记',
+  '看到新来的猫咪就炸毛，说是宫中有新人入住了',
+  '喜欢钻进纸箱里，说是微服私访',
+  '每天舔毛要舔半小时，说是梳妆打扮',
+  '看到猫薄荷就像中了邪，说是御赐灵药',
+  '喜欢在窗台上晒太阳打盹，说是批阅奏折累了歇息片刻'
+];
+
+const dramaLines = {
+  drama: {
+    openings: [
+      '本宫', '哀家', '臣妾', '本宫', '奴才我', '本宫'
+    ],
+    middle: [
+      '终究是错付了', '这后宫之中，从不缺的便是争宠',
+      '你以为你稳坐钓鱼台？天真！', '这宫里的猫，各有各的心思',
+      '猫生如戏，全靠演技', '这一室之内，暗流涌动',
+      '你以为你赢定了？好戏才刚开始呢', '后宫的风波，从来不会因为一只猫而停止',
+      '她以为这样就能压我一头？做梦', '这猫爬架之上，自有规矩'
+    ],
+    endings: [
+      '这后宫的猫生，终究是一场修行',
+      '笑到最后的那只猫，才是真的赢家',
+      '一猫一世界，一宫一江湖',
+      '这深宫中的猫，各有各的道',
+      '猫生苦短，争宠何必？不如一起睡个午觉',
+      '后宫争斗，不过是一场关于罐头和阳光的战争'
+    ]
+  },
+  comedy: {
+    openings: [
+      '本喵今日心情好', '朕今日龙颜大悦', '本宫饿了',
+      '今天又是喵生圆满的一天', '喵~', '今日天气不错，适合睡午觉',
+      '今天又是被主子宠幸的一天', '本喵又要开饭了'
+    ],
+    middle: [
+      '但是饭碗里少了一块猫粮，天塌了',
+      '结果被另一个兄弟按在地上摩擦',
+      '她以为自己是老大？呵，可笑',
+      '直到主人开了一个罐头',
+      '然后就开始在客厅表演跑酷',
+      '结果一不小心从猫爬架上摔了下来，还死不承认',
+      '毕竟，谁让它们都是干饭喵呢',
+      '这后宫之中，最硬的规矩就是——开饭了',
+      '但是被抢了零食的那一刻，她的心碎了',
+      '她决定用三天三夜来证明谁才是真命天子'
+    ],
+    endings: [
+      '后宫的猫，终究是干饭喵',
+      '争什么宠呢？不如一起去晒太阳',
+      '这宫里的猫，最大的野心不过是——罐头自由',
+      '后宫争斗结束了，因为它们都饿了',
+      '原来，最好的感情，不过是各自舔各自的毛',
+      '一猫一世界，一顿猫饭一个江湖'
+    ]
+  },
+  romance: {
+    openings: [
+      '她第一眼看到他，就知道这只猫与众不同',
+      '那个午后，阳光洒在猫爬架上，她看到了他',
+      '她以为自己是这宫里最孤独的猫',
+      '直到他推开了那扇门'
+    ],
+    middle: [
+      '从此，她的心就像被猫薄荷迷了魂',
+      '她开始每天等他在饭点出现',
+      '他们一起晒太阳、一起睡觉、一起分享一个纸箱',
+      '她偷偷舔他头上的毛，他假装不知道',
+      '他会在她生气的时候蹭蹭她的下巴',
+      '她以为他只是个干饭的，没想到他是个暖男',
+      '他们之间的故事，从一碗猫饭开始',
+      '在这个后宫里，只有他不会让她伤心'
+    ],
+    endings: [
+      '后宫三千猫，唯他最宠她',
+      '原来最甜的日常，不过是你在身边晒太阳',
+      '从此，一猫一世界，一人一猫一宫',
+      '爱情不需要争宠，只需要一碗猫饭的默契',
+      '原来最好的感情，就是各舔各的毛但靠在一起睡',
+      '后宫的故事再精彩，也比不过她靠在他身上的那个午后'
+    ]
+  }
+};
+
+// Generate dynamic input fields
+function updateCatInputs(count) {
+  const num = parseInt(count);
+  let inputsHTML = '';
+  let traitsHTML = '';
+  for (let i = 0; i < num; i++) {
+    inputsHTML += `<input type="text" class="cat-name-input" placeholder="猫${i+1} 的名字（如：橘子）" />`;
+    traitsHTML += `<textarea class="cat-trait-input" placeholder="猫${i+1} 的性格特点（如：贪吃、粘人）" rows="1"></textarea>`;
+  }
+  catInputsContainer.innerHTML = inputsHTML;
+  catTraitsContainer.innerHTML = traitsHTML;
+}
+
+// Listen for radio changes
+catCountRadios.forEach(radio => {
+  radio.addEventListener('change', () => {
+    updateCatInputs(radio.value);
+  });
+});
+
+// Generate script
+generateBtn.addEventListener('click', () => {
+  const catNames = catInputsContainer.querySelectorAll('.cat-name-input');
+  const catTraits = catTraitsContainer.querySelectorAll('.cat-trait-input');
+  const storyStyle = document.querySelector('input[name="storyStyle"]:checked').value;
+  const hasDog = document.getElementById('hasDog')?.checked || false;
+  const data = catCharacterData[catNames.length] || catCharacterData[2];
+
+  // Gather names
+  const names = [];
+  catNames.forEach(input => {
+    const val = input.value.trim();
+    if (val) names.push(val);
+  });
+
+  // Gather traits
+  const traits = [];
+  catTraits.forEach(input => {
+    const val = input.value.trim();
+    if (val) traits.push(val);
+  });
+
+  // Default names if empty
+  while (names.length < catNames.length) {
+    names.push(`猫${names.length + 1}`);
+  }
+  while (traits.length < catTraits.length) {
+    traits.push('性格独特，自有千秋');
+  }
+
+  const script = generateZhenguanScript(names, traits, data, storyStyle, hasDog);
+
+  // Display
+  outputEmpty.style.display = 'none';
+  outputContent.style.display = 'block';
+  outputContent.innerHTML = `<pre style="margin:0;white-space:pre-wrap;line-height:1.8;font-size:0.95rem;color:var(--text);font-family:inherit;">${script}</pre>`;
+
+  copyBtn.disabled = false;
+  regenerateBtn.disabled = false;
+});
+
+// Copy script
+copyBtn.addEventListener('click', () => {
+  const text = outputContent.textContent || outputContent.innerText;
+  navigator.clipboard.writeText(text).then(() => {
+    const originalText = copyBtn.textContent;
+    copyBtn.textContent = '✅ 已复制！';
+    setTimeout(() => { copyBtn.textContent = originalText; }, 2000);
+  });
+});
+
+// Regenerate
+regenerateBtn.addEventListener('click', () => {
+  generateBtn.click();
+});
+
+function generateZhenguanScript(names, traits, data, style, hasDog) {
+  const n = names.length;
+  const roleNames = data.roles;
+
+  // Random helper
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const pickMany = (arr, count) => {
+    const shuffled = [...arr].sort(() => Math.random() - 0.5);
+    return shuffled.slice(0, count);
+  };
+
+  let script = '';
+
+  // Title
+  script += `📜 多猫家庭甄嬛传\n\n`;
+  script += `🏰 场景：${pickMany(data.palaceNames, n).join(' ↔ ')}\n`;
+  script += `👥 出场角色：`;
+  for (let i = 0; i < n; i++) {
+    const role = roleNames[i] || { title: '妃嫔', suffix: '妹妹' };
+    script += `${names[i]}（${role.title}${role.suffix}）\n`;
+  }
+  if (hasDog) {
+    const dogTitle = pick(dogCharacterData.titles);
+    script += `🐕 ${dogTitle}（压轴反派）\n`;
+  }
+  script += `\n`;
+
+  // Opening
+  script += `【第一幕 · 开场】\n\n`;
+  script += `${pick(dramaLines[style].openings)}\n`;
+
+  // Introduce the setting
+  if (n >= 3) {
+    script += `这宫里的猫，平日里看着岁月静好，可每当饭点一到，便暗流涌动。`;
+  } else {
+    script += `这宫里的日子，看着平静，实则处处机锋。`;
+  }
+  script += `\n\n`;
+
+  // Scene descriptions
+  script += `【第二幕 · 后宫日常】\n\n`;
+  const detailScene = pickMany(palaceLifeDetails, n * 2);
+  for (let i = 0; i < n; i++) {
+    script += `${names[i]}（${traits[i]}）\n`;
+    script += `  · ${detailScene[i * 2]}\n`;
+    script += `  · ${detailScene[i * 2 + 1]}\n\n`;
+  }
+
+  // Conflict scene
+  script += `【第三幕 · ${pick(data.conflicts)}】\n\n`;
+  if (n >= 3) {
+    script += `这日，${pick(names)}在猫爬架上${pick(palaceLifeDetails)}。`;
+    script += `不料${pick(names.filter((_, i) => i !== names.indexOf(pick(names.filter((_, i) => i !== names.indexOf(pick(names)))))))}恰好经过，${pick(dramaLines[style].middle)}。\n\n`;
+    script += `${names[pick([0, n-1])]}冷冷一笑：「${pick(dramaLines[style].middle)}。」\n\n`;
+  } else if (n === 2) {
+    script += `${names[0]}正${pick(palaceLifeDetails)}。`;
+    script += `${names[1]}端着猫碗走来，${pick(dramaLines[style].middle)}。\n\n`;
+    script += `${names[0]}眯起眼睛：「${pick(dramaLines[style].middle)}。」`;
+  }
+
+  // Dog scene
+  if (hasDog) {
+    script += `\n【第四幕 · 狗入后宫】\n\n`;
+    script += `正当众猫争执不下时，${pick(dogCharacterData.titles)}大摇大摆地走进了猫的世界。\n\n`;
+    script += `${names[0]}怒道：「${pick(dogCharacterData.insults)}！」\n\n`;
+    script += `然而，${pick(names)}默默走过去，蹭了蹭${pick(dogCharacterData.titles)}的腿。\n\n`;
+    script += `众猫：「……」\n\n`;
+    script += `${names[0]}叹了口气：「终究是错付了。」\n\n`;
+  }
+
+  // Ending
+  script += `【终幕 · 结语】\n\n`;
+  script += pick(dramaLines[style].endings);
+  script += `\n\n`;
+
+  // Moral
+  if (style === 'comedy') {
+    script += `💡 本剧寓意：后宫争斗千万条，干饭和谐第一条。`;
+  } else if (style === 'drama') {
+    script += `💡 本剧寓意：后宫风云变幻，唯有猫粮永存。`;
+  } else {
+    script += `💡 本剧寓意：后宫虽大，不过一猫一狗一世界。`;
+  }
+  script += `\n`;
+
+  return script;
+}
+
+// ========== Original code (九宫格切图) ==========
+
 drawPlaceholder();
 updateFilterBadge();

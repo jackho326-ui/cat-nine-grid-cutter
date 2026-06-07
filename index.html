@@ -3,61 +3,142 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>猫咪九宫格切图</title>
+  <title>猫咪九宫格切图 · 甄嬛传剧本生成器</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <main class="app">
     <section class="hero">
-      <div class="badge">🐾 Cat Grid Cutter</div>
-      <h1>猫咪九宫格切图</h1>
-      <p>上传一张猫咪照片，一键切成朋友圈/小红书常用的 3 × 3 九宫格图片。</p>
+      <div class="badge">🐾 Cat Tools</div>
+      <h1>猫咪工具箱</h1>
+      <p>猫咪九宫格切图 · 多猫家庭甄嬛传剧本生成器 · 全部纯前端运行</p>
     </section>
 
-    <section class="panel uploader">
-      <label class="drop-zone" id="dropZone">
-        <input id="fileInput" type="file" accept="image/*" />
-        <span class="cat-face">🐱</span>
-        <strong>点击或拖拽上传猫咪图片</strong>
-        <small>支持 JPG、PNG、WebP 等常见图片格式</small>
-      </label>
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs" id="navTabs">
+      <button class="tab-btn active" data-tab="grid" title="九宫格切图">🐱 九宫格切图</button>
+      <button class="tab-btn" data-tab="zhenguan" title="甄嬛传剧本生成器">📜 甄嬛传剧本</button>
+    </nav>
 
-      <div class="filter-panel">
-        <div>
-          <h2>一键 INS 猫咪阳光滤镜</h2>
-          <p>明亮、温暖、日系高光，为白猫、橘猫、三花保留毛色层次并增加柔和暖光。</p>
-        </div>
-        <label class="filter-toggle">
-          <input id="filterToggle" type="checkbox" checked />
-          <span>套用猫咪专属高光暖色调</span>
+    <!-- Tab 1: 九宫格切图 -->
+    <section class="tab-panel active" id="tab-grid">
+      <section class="panel uploader">
+        <label class="drop-zone" id="dropZone">
+          <input id="fileInput" type="file" accept="image/*" />
+          <span class="cat-face">🐱</span>
+          <strong>点击或拖拽上传猫咪图片</strong>
+          <small>支持 JPG、PNG、WebP 等常见图片格式</small>
         </label>
-      </div>
 
-      <div class="style-picker" id="stylePicker">
-        <button class="style-btn active" data-style="normal" title="标准正方形切图">普通切图</button>
-        <button class="style-btn" data-style="ears" title="顶部猫耳 + 胡须">猫耳边框</button>
-        <button class="style-btn" data-style="polaroid" title="拍立得白边 + 日期戳">拍立得白边</button>
-        <button class="style-btn" data-style="watermark" title="中间格带高级水印">高级水印</button>
-      </div>
+        <div class="filter-panel">
+          <div>
+            <h2>一键 INS 猫咪阳光滤镜</h2>
+            <p>明亮、温暖、日系高光，为白猫、橘猫、三花保留毛色层次并增加柔和暖光。</p>
+          </div>
+          <label class="filter-toggle">
+            <input id="filterToggle" type="checkbox" checked />
+            <span>套用猫咪专属高光暖色调</span>
+          </label>
+        </div>
 
-      <div class="actions">
-        <button id="cutButton" disabled>切成九宫格</button>
-        <button id="downloadAllButton" class="secondary" disabled>下载全部</button>
-      </div>
+        <div class="style-picker" id="stylePicker">
+          <button class="style-btn active" data-style="normal" title="标准正方形切图">普通切图</button>
+          <button class="style-btn" data-style="ears" title="顶部猫耳 + 胡须">猫耳边框</button>
+          <button class="style-btn" data-style="polaroid" title="拍立得白边 + 日期戳">拍立得白边</button>
+          <button class="style-btn" data-style="watermark" title="中间格带高级水印">高级水印</button>
+        </div>
+
+        <div class="actions">
+          <button id="cutButton" disabled>切成九宫格</button>
+          <button id="downloadAllButton" class="secondary" disabled>下载全部</button>
+        </div>
+      </section>
+
+      <section class="workspace">
+        <div class="panel preview-card">
+          <h2>原图预览 <span id="filterBadge" class="filter-badge active">INS 暖阳滤镜已开启</span></h2>
+          <canvas id="previewCanvas" width="600" height="600"></canvas>
+        </div>
+
+        <div class="panel grid-card">
+          <h2>九宫格结果</h2>
+          <div id="grid" class="grid empty">
+            <p>上传图片后，这里会显示 9 张切图。</p>
+          </div>
+        </div>
+      </section>
     </section>
 
-    <section class="workspace">
-      <div class="panel preview-card">
-        <h2>原图预览 <span id="filterBadge" class="filter-badge active">INS 暖阳滤镜已开启</span></h2>
-        <canvas id="previewCanvas" width="600" height="600"></canvas>
-      </div>
-
-      <div class="panel grid-card">
-        <h2>九宫格结果</h2>
-        <div id="grid" class="grid empty">
-          <p>上传图片后，这里会显示 9 张切图。</p>
+    <!-- Tab 2: 甄嬛传剧本生成器 -->
+    <section class="tab-panel" id="tab-zhenguan">
+      <section class="panel zhenguan-panel">
+        <div class="zhenguan-header">
+          <span class="cat-face royal">👑</span>
+          <h2>多猫家庭甄嬛传</h2>
+          <p>输入你家的猫咪名字、性格和关系，AI 自动为你生成一段宫廷大戏风格的剧本！</p>
         </div>
-      </div>
+
+        <div class="zhenguan-form">
+          <div class="form-group">
+            <label>你家有几只猫？</label>
+            <div class="radio-group" id="catCount">
+              <label class="radio-label"><input type="radio" name="catCount" value="2" checked /> 2 只</label>
+              <label class="radio-label"><input type="radio" name="catCount" value="3" /> 3 只</label>
+              <label class="radio-label"><input type="radio" name="catCount" value="4" /> 4 只</label>
+              <label class="radio-label"><input type="radio" name="catCount" value="5" /> 5 只</label>
+              <label class="radio-label"><input type="radio" name="catCount" value="6" /> 6 只及以上</label>
+            </div>
+          </div>
+
+          <div class="form-group" id="catNamesGroup">
+            <label>每只猫的名字</label>
+            <div class="cat-inputs" id="catInputs">
+              <input type="text" class="cat-name-input" placeholder="猫1 的名字（如：橘子）" />
+              <input type="text" class="cat-name-input" placeholder="猫2 的名字（如：花花）" />
+            </div>
+          </div>
+
+          <div class="form-group" id="catTraitsGroup">
+            <label>每只猫的性格特点</label>
+            <div class="cat-traits" id="catTraits">
+              <textarea class="cat-trait-input" placeholder="橘子：贪吃、粘人、胆子小" rows="1"></textarea>
+              <textarea class="cat-trait-input" placeholder="花花：高冷、优雅、喜欢高处" rows="1"></textarea>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>剧本风格</label>
+            <div class="radio-group" id="storyStyle">
+              <label class="radio-label"><input type="radio" name="storyStyle" value="drama" checked /> 宫斗大戏</label>
+              <label class="radio-label"><input type="radio" name="storyStyle" value="comedy" /> 轻松搞笑</label>
+              <label class="radio-label"><input type="radio" name="storyStyle" value="romance" /> 甜宠日常</label>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>可选：添加一条狗？</label>
+            <label class="filter-toggle">
+              <input id="hasDog" type="checkbox" />
+              <span>我家有狗（它会成为最大反派/喜剧担当）</span>
+            </label>
+          </div>
+
+          <div class="actions">
+            <button id="generateBtn" class="primary-btn">🎬 生成甄嬛传剧本</button>
+            <button id="copyBtn" class="secondary" disabled>📋 复制剧本</button>
+            <button id="regenerateBtn" class="secondary" disabled>🔄 重新生成</button>
+          </div>
+        </div>
+
+        <div class="zhenguan-output" id="zhenguanOutput">
+          <div class="output-empty">
+            <span class="cat-face">📜</span>
+            <p>填写上方信息后，点击「生成甄嬛传剧本」</p>
+            <p style="color: var(--muted); font-size: 0.9rem;">你的猫咪们，就是后宫里的妃嫔们~</p>
+          </div>
+          <div class="output-content" id="outputContent" style="display: none;"></div>
+        </div>
+      </section>
     </section>
 
     <footer>
