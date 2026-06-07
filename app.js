@@ -798,6 +798,339 @@ function generateZhenguanScript(names, traits, data, style, hasDog) {
   return script;
 }
 
+// ========== 漫画连环画生成器 ==========
+const comicTabBtn = document.querySelector('[data-tab="comic"]');
+const avatarGrid = document.getElementById('avatarGrid');
+const avatarUploads = document.querySelectorAll('.avatar-upload');
+const comicCatInputs = document.getElementById('comicCatInputs');
+const comicCatTraits = document.getElementById('comicCatTraits');
+const comicGenerateBtn = document.getElementById('comicGenerateBtn');
+const comicDownloadBtn = document.getElementById('comicDownloadBtn');
+const comicResults = document.getElementById('comicResults');
+
+// Track uploaded avatars: { 0: dataURL, 1: dataURL, ... }
+const avatarImages = {};
+
+// Comic scene templates - 5 scenes
+const comicScenes = [
+  {
+    title: '第一幕 · 后宫开场',
+    desc: '猫咪们登场，展示后宫日常氛围'
+  },
+  {
+    title: '第二幕 · 猫咪日常',
+    desc: '每只猫咪在各自的岗位上忙碌'
+  },
+  {
+    title: '第三幕 · 冲突爆发',
+    desc: '矛盾出现，猫咪们开始争斗'
+  },
+  {
+    title: '第四幕 · 高潮对决',
+    desc: '戏剧性高潮，狗狗可能参战'
+  },
+  {
+    title: '第五幕 · 温馨结局',
+    desc: '一切归于平静，猫咪们和好'
+  }
+];
+
+// Handle avatar uploads
+avatarUploads.forEach(upload => {
+  const index = parseInt(upload.dataset.index);
+  const input = upload.querySelector('.avatar-input');
+  const previewEl = document.getElementById(`avatarPreview${index}`);
+
+  input.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataURL = ev.target.result;
+      avatarImages[index] = dataURL;
+
+      // Show preview
+      if (previewEl) {
+        previewEl.style.display = 'block';
+        previewEl.innerHTML = `<img src="${dataURL}" alt="猫${index+1}头像" />`;
+      }
+      // Hide upload
+      upload.style.display = 'none';
+    };
+    reader.readAsDataURL(file);
+  });
+});
+
+// Generate comic
+comicGenerateBtn.addEventListener('click', async () => {
+  const names = [];
+  const traits = [];
+  const nameInputs = comicCatInputs.querySelectorAll('.cat-name-input');
+  const traitInputs = comicCatTraits.querySelectorAll('.cat-trait-input');
+
+  nameInputs.forEach(input => {
+    const val = input.value.trim();
+    if (val) names.push(val);
+  });
+  traitInputs.forEach(input => {
+    const val = input.value.trim();
+    if (val) traits.push(val);
+  });
+
+  if (names.length === 0) {
+    alert('请至少输入一只猫咪的名字！');
+    return;
+  }
+  if (Object.keys(avatarImages).length === 0) {
+    alert('请至少上传一张猫咪头像！');
+    return;
+  }
+
+  // Default traits
+  while (traits.length < names.length) {
+    traits.push('性格独特，自有千秋');
+  }
+
+  const style = document.querySelector('input[name="comicStoryStyle"]:checked')?.value || 'drama';
+  const hasDog = document.getElementById('comicHasDog')?.checked || false;
+
+  // Disable button during generation
+  comicGenerateBtn.disabled = true;
+  comicGenerateBtn.textContent = '⏳ 生成中...';
+  comicDownloadBtn.disabled = true;
+
+  // Show results area
+  comicResults.style.display = 'block';
+  comicResults.innerHTML = '';
+  const outputEmpty = document.querySelector('#tab-comic .output-empty');
+  if (outputEmpty) outputEmpty.style.display = 'none';
+
+  const n = names.length;
+  const data = catCharacterData[n] || catCharacterData[2];
+
+  // Generate scene descriptions using the script logic
+  const sceneDescriptions = generateComicSceneDescriptions(names, traits, data, style, hasDog);
+
+  // Create scene cards
+  for (let i = 0; i < 5; i++) {
+    const scene = comicScenes[i];
+    const card = document.createElement('div');
+    card.className = 'comic-scene-card';
+    card.id = `comicScene${i}`;
+
+    card.innerHTML = `
+      <div class="scene-thumb">
+        <div class="scene-loading" id="sceneLoading${i}">
+          <div class="spinner"></div>
+          <div>正在绘制...</div>
+        </div>
+      </div>
+      <div class="scene-info">
+        <div class="scene-number">Scene ${i + 1}</div>
+        <div class="scene-title">${scene.title}</div>
+        <div class="scene-status" id="sceneStatus${i}">等待生成中...</div>
+        <div class="scene-prompt" id="scenePrompt${i}"></div>
+      </div>
+    `;
+
+    comicResults.appendChild(card);
+  }
+
+  // Generate images one by one with delay for better UX
+  const generatedImages = [];
+
+  for (let i = 0; i < 5; i++) {
+    try {
+      const loadingEl = document.getElementById(`sceneLoading${i}`);
+      const statusEl = document.getElementById(`sceneStatus${i}`);
+      const promptEl = document.getElementById(`scenePrompt${i}`);
+      const thumbEl = card.querySelector('.scene-thumb') || document.querySelector(`#comicScene${i} .scene-thumb`);
+
+      const prompt = sceneDescriptions[i].prompt;
+      if (promptEl) promptEl.textContent = `Prompt: ${prompt}`;
+      if (statusEl) statusEl.textContent = '🎨 正在绘制中...';
+
+      const imageUrl = await generateComicSceneImage(prompt, names, traits, hasDog, style, i);
+      generatedImages.push(imageUrl);
+
+      // Update card with result
+      const sceneCard = document.getElementById(`comicScene${i}`);
+      const thumb = sceneCard?.querySelector('.scene-thumb');
+      if (thumb) {
+        thumb.innerHTML = `<img src="${imageUrl}" alt="场景${i+1}" />`;
+      }
+      if (statusEl) {
+        statusEl.textContent = `✅ 绘制完成 (${sceneDescriptions[i].sceneDesc})`;
+      }
+
+      // Wait a bit between requests for better reliability
+      if (i < 4) {
+        await new Promise(r => setTimeout(r, 2000));
+      }
+
+    } catch (err) {
+      console.error(`Scene ${i} failed:`, err);
+      const sceneCard = document.getElementById(`comicScene${i}`);
+      const thumb = sceneCard?.querySelector('.scene-thumb');
+      if (thumb) {
+        thumb.innerHTML = `<div class="scene-loading" style="color: #ef4444;">❌ 生成失败<br><small>${err.message}</small></div>`;
+      }
+      const statusEl = document.getElementById(`sceneStatus${i}`);
+      if (statusEl) statusEl.textContent = '❌ 生成失败';
+    }
+  }
+
+  // Re-enable button
+  comicGenerateBtn.disabled = false;
+  comicGenerateBtn.textContent = '🎨 生成漫画连环画';
+
+  if (generatedImages.length > 0) {
+    comicDownloadBtn.disabled = false;
+  }
+});
+
+// Generate comic scene image via Hermes gateway API
+// The gateway runs locally on port 18789 and proxies to the image generation provider
+async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, sceneIndex) {
+  // Build the image prompt
+  const catDesc = names.map((name, i) => {
+    const avatarIndex = Object.keys(avatarImages).find(k => parseInt(k) <= i && avatarImages[parseInt(k)]);
+    const avatarNote = avatarIndex ? ` [cat ${name} avatar reference]` : '';
+    return name + avatarNote;
+  }).join('、');
+
+  const styleKeyword = {
+    drama: 'dramatic manga',
+    comedy: 'funny manga',
+    romance: 'sweet manga'
+  }[style] || 'manga';
+
+  const dogNote = hasDog ? ', and a cute dog character in the scene' : '';
+
+  const prompt = `A manga/comic illustration in ${styleKeyword} style, featuring cats: ${catDesc}. ${sceneDesc}.
+    Each cat should have a distinct personality expression.
+    Clean manga style, bold outlines, cel-shaded coloring, expressive anime-style cat faces.
+    Panel-style composition${dogNote}. Chinese comic aesthetic, warm lighting, high detail.`;
+
+  // Try the local Hermes gateway (port 18789)
+  const gatewayUrl = 'http://localhost:18789/v1/images/generations';
+
+  const response = await fetch(gatewayUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: 'agnes-image-2.1-flash',
+      prompt: prompt,
+      size: '1024x1024',
+      n: 1
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  if (data.data && data.data[0] && data.data[0].url) {
+    return data.data[0].url;
+  } else if (data.data && data.data[0] && data.data[0].b64_json) {
+    return `data:image/png;base64,${data.data[0].b64_json}`;
+  } else {
+    throw new Error('无法解析图片结果');
+  }
+}
+
+// Scene description generator
+function generateComicSceneDescriptions(names, traits, data, style, hasDog) {
+  const n = names.length;
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const openers = dramaLines[style].openings;
+  const middles = dramaLines[style].middle;
+  const details = palaceLifeDetails;
+
+  const scenes = [];
+
+  // Scene 1: Opening
+  let scene1Desc = '';
+  if (n >= 3) {
+    scene1Desc = `${names[0]}站在猫爬架最高处巡视领地，阳光从窗户洒进来。`;
+    const others = names.slice(1).map((_, i) => ` ${names[1+i]}在${pick(details)}。`);
+    scene1Desc += others.join('');
+  } else {
+    scene1Desc = `${names[0]}在${pick(details)}。${names[1]}在${pick(details)}。`;
+  }
+  scenes.push({
+    sceneDesc: '后宫日常开场',
+    prompt: `${pick(openers)}开场。${scene1Desc} 温馨宁静的午后，猫咪们在宫殿般的客厅里各据一方。`
+  });
+
+  // Scene 2: Daily life
+  scenes.push({
+    sceneDesc: '猫咪们的日常',
+    prompt: `展示${n}只猫咪各自的日常活动场景。${names.map((nm,i)=>`${nm}(${traits[i]||'性格独特'})正在${pick(details)}。`).join('')} 多格漫画分镜，每只猫都有独特的表情和动作。`
+  });
+
+  // Scene 3: Conflict
+  const opponentNames = names.filter((_, i) => i !== 0);
+  scenes.push({
+    sceneDesc: '冲突爆发',
+    prompt: `戏剧性冲突场景。${pick(names)}和${pick(opponentNames)}为${pick(data.conflicts)}而争执。${pick(names)}怒目而视，${pick(names)}不屑地甩尾巴。${pick(middles)} 紧张的漫画分镜，夸张的表情。`
+  });
+
+  // Scene 4: Climax
+  let dogIntro = '';
+  let dogOutro = '';
+  if (hasDog) {
+    dogIntro = '🐕 ' + pick(dogCharacterData.titles) + '大摇大摆闯入猫的世界，所有猫震惊回头。';
+    dogOutro = '狗狗摇着尾巴，仿佛局外人。';
+  }
+  scenes.push({
+    sceneDesc: '高潮对决',
+    prompt: `${dogIntro} ${pick(names)}和${pick(names)}正面交锋，夸张的漫画风格对峙画面。${pick(middles)} ${dogOutro} 戏剧性强烈的漫画分镜。`
+  });
+
+  // Scene 5: Ending
+  scenes.push({
+    sceneDesc: '温馨结局',
+    prompt: `所有猫咪和狗狗(如果有的话)一起依偎在一起睡觉或玩耍的场景。${pick(names)}主动蹭了蹭${pick(names)}，${pick(middles)} ${pick(dramaLines[style].endings)} 温暖的阳光洒在猫咪们身上，温馨和谐。`
+  });
+
+  return scenes;
+}
+
+// Download all comic images
+async function downloadAllComicImages() {
+  const sceneCards = comicResults.querySelectorAll('.comic-scene-card');
+  for (let i = 0; i < sceneCards.length; i++) {
+    const img = sceneCards[i]?.querySelector('.scene-thumb img');
+    if (img) {
+      try {
+        const response = await fetch(img.src);
+        const blob = await response.blob();
+        const ext = img.src.startsWith('data:') ? (img.src.includes('jpeg') ? '.jpg' : '.png') : '.png';
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `漫画场景_${i+1}.png`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(a.href);
+      } catch (err) {
+        console.error(`Download scene ${i} failed:`, err);
+      }
+      // Small delay between downloads
+      await new Promise(r => setTimeout(r, 500));
+    }
+  }
+}
+
+comicDownloadBtn?.addEventListener('click', downloadAllComicImages);
+
+
 // ========== Original code (九宫格切图) ==========
 
 drawPlaceholder();
