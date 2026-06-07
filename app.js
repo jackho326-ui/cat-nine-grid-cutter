@@ -799,7 +799,14 @@ function generateZhenguanScript(names, traits, data, style, hasDog) {
 }
 
 // ========== 漫画连环画生成器 ==========
-const comicTabBtn = document.querySelector('[data-tab="comic"]');
+// Shared state between tabs
+const sharedComicConfig = {
+  names: [],
+  traits: [],
+  style: 'drama',
+  hasDog: false
+};
+
 const avatarGrid = document.getElementById('avatarGrid');
 const avatarUploads = document.querySelectorAll('.avatar-upload');
 const comicCatInputs = document.getElementById('comicCatInputs');
@@ -807,41 +814,93 @@ const comicCatTraits = document.getElementById('comicCatTraits');
 const comicGenerateBtn = document.getElementById('comicGenerateBtn');
 const comicDownloadBtn = document.getElementById('comicDownloadBtn');
 const comicResults = document.getElementById('comicResults');
+const comicProgress = document.getElementById('comicProgress');
+const progressBar = document.getElementById('progressBar');
+const progressLabel = document.getElementById('progressLabel');
 
 // Track uploaded avatars: { 0: dataURL, 1: dataURL, ... }
 const avatarImages = {};
+// Store generated image URLs for download: [url1, url2, ...]
+const generatedImageUrls = [];
 
-// Comic scene templates - 5 scenes
+// 5 scenes with Chinese + English descriptions
 const comicScenes = [
   {
     title: '第一幕 · 后宫开场',
-    desc: '猫咪们登场，展示后宫日常氛围'
+    desc: '猫咪们登场，展示后宫日常氛围',
+    cnDesc: '' // filled by generator
   },
   {
     title: '第二幕 · 猫咪日常',
-    desc: '每只猫咪在各自的岗位上忙碌'
+    desc: '每只猫咪在各自的岗位上忙碌',
+    cnDesc: ''
   },
   {
     title: '第三幕 · 冲突爆发',
-    desc: '矛盾出现，猫咪们开始争斗'
+    desc: '矛盾出现，猫咪们开始争斗',
+    cnDesc: ''
   },
   {
     title: '第四幕 · 高潮对决',
-    desc: '戏剧性高潮，狗狗可能参战'
+    desc: '戏剧性高潮，狗狗可能参战',
+    cnDesc: ''
   },
   {
     title: '第五幕 · 温馨结局',
-    desc: '一切归于平静，猫咪们和好'
+    desc: '一切归于平静，猫咪们和好',
+    cnDesc: ''
   }
 ];
 
-// Handle avatar uploads
-avatarUploads.forEach(upload => {
-  const index = parseInt(upload.dataset.index);
-  const input = upload.querySelector('.avatar-input');
-  const previewEl = document.getElementById(`avatarPreview${index}`);
+// ---- Dynamic Avatar & Name Fields ----
+const comicCatCountRadios = document.querySelectorAll('input[name="comicCatCount"]');
+const comicAvatarGrid = document.getElementById('avatarGrid');
+const comicNameInputs = document.getElementById('comicCatInputs');
+const comicTraitInputs = document.getElementById('comicCatTraits');
 
-  input.addEventListener('change', (e) => {
+function updateComicFields(count) {
+  const num = parseInt(count);
+
+  // Build avatar slots
+  let avatarsHTML = '';
+  for (let i = 0; i < num; i++) {
+    const hasImage = avatarImages[i];
+    avatarsHTML += `
+      <div class="avatar-slot" data-index="${i}">
+        <div class="avatar-upload" id="avatarUpload${i}" ${hasImage ? 'style="display:none"' : ''}>
+          <span class="cat-face">🐱</span>
+          <strong>猫${i+1} 头像</strong>
+          <small>点击上传</small>
+          <input type="file" accept="image/*" class="avatar-input" data-index="${i}" />
+        </div>
+        <div class="avatar-preview" id="avatarPreview${i}" style="display:${hasImage ? 'block' : 'none'}">
+          ${hasImage ? `<img src="${avatarImages[i]}" alt="猫${i+1}头像" />` : ''}
+        </div>
+      </div>`;
+  }
+  comicAvatarGrid.innerHTML = avatarsHTML;
+
+  // Build name inputs
+  let namesHTML = '';
+  for (let i = 0; i < num; i++) {
+    const placeholder = `猫${i+1} 的名字（如：橘子）`;
+    namesHTML += `<input type="text" class="cat-name-input" placeholder="${placeholder}" />`;
+  }
+  comicNameInputs.innerHTML = namesHTML;
+
+  // Build trait inputs
+  let traitsHTML = '';
+  for (let i = 0; i < num; i++) {
+    const placeholder = `猫${i+1} 的性格特点（如：贪吃、粘人）`;
+    traitsHTML += `<textarea class="cat-trait-input" placeholder="${placeholder}" rows="1"></textarea>`;
+  }
+  comicTraitInputs.innerHTML = traitsHTML;
+}
+
+// Handle new avatar uploads (after dynamic update)
+document.addEventListener('change', (e) => {
+  if (e.target.classList.contains('avatar-input')) {
+    const index = parseInt(e.target.dataset.index);
     const file = e.target.files[0];
     if (!file) return;
 
@@ -850,44 +909,118 @@ avatarUploads.forEach(upload => {
       const dataURL = ev.target.result;
       avatarImages[index] = dataURL;
 
-      // Show preview
+      const previewEl = document.getElementById(`avatarPreview${index}`);
       if (previewEl) {
         previewEl.style.display = 'block';
         previewEl.innerHTML = `<img src="${dataURL}" alt="猫${index+1}头像" />`;
       }
-      // Hide upload
-      upload.style.display = 'none';
+      const uploadEl = document.getElementById(`avatarUpload${index}`);
+      if (uploadEl) uploadEl.style.display = 'none';
     };
     reader.readAsDataURL(file);
-  });
+  }
 });
 
-// Generate comic
+// ---- Bridge from 甄嬛传 tab -> comic tab ----
+const openComicFromScript = document.getElementById('openComicFromScript');
+
+function syncConfigToComicTab() {
+  const zhenguanNames = document.querySelectorAll('#tab-zhenguan .cat-name-input');
+  const zhenguanTraits = document.querySelectorAll('#tab-zhenguan .cat-trait-input');
+  const zhenguanStyle = document.querySelector('#tab-zhenguan input[name="storyStyle"]:checked')?.value || 'drama';
+  const zhenguanHasDog = document.getElementById('hasDog')?.checked || false;
+
+  sharedComicConfig.names = [];
+  sharedComicConfig.traits = [];
+  sharedComicConfig.style = zhenguanStyle;
+  sharedComicConfig.hasDog = zhenguanHasDog;
+
+  // Collect names
+  zhenguanNames.forEach(input => {
+    const val = input.value.trim();
+    sharedComicConfig.names.push(val || '猫咪');
+  });
+
+  // Collect traits
+  zhenguanTraits.forEach(input => {
+    const val = input.value.trim();
+    sharedComicConfig.traits.push(val || '性格独特，自有千秋');
+  });
+
+  // Switch to comic tab
+  const comicBtn = document.querySelector('[data-tab="comic"]');
+  if (comicBtn) comicBtn.click();
+
+  // Populate comic form fields
+  const comicNames = document.querySelectorAll('#comicCatInputs .cat-name-input');
+  const comicTraits = document.querySelectorAll('#comicCatTraits .cat-trait-input');
+
+  comicNames.forEach((input, i) => {
+    if (sharedComicConfig.names[i]) input.value = sharedComicConfig.names[i];
+  });
+
+  comicTraits.forEach((input, i) => {
+    if (sharedComicConfig.traits[i]) input.value = sharedComicConfig.traits[i];
+  });
+
+  // Set style radio
+  const styleRadio = document.querySelector(`#comicStoryStyle input[value="${zhenguanStyle}"]`);
+  if (styleRadio) styleRadio.checked = true;
+
+  // Set dog checkbox
+  const dogCheckbox = document.getElementById('comicHasDog');
+  if (dogCheckbox) dogCheckbox.checked = zhenguanHasDog;
+
+  // Show toast notification
+  showToast('✅ 已将甄嬛传信息同步到漫画生成器！请上传猫咪头像后点击生成');
+}
+
+openComicFromScript?.addEventListener('click', syncConfigToComicTab);
+
+function showToast(message) {
+  const toast = document.createElement('div');
+  toast.className = 'toast-message';
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  setTimeout(() => {
+    toast.classList.add('show');
+  }, 10);
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 400);
+  }, 3000);
+}
+
+// ---- Comic Generation ----
 comicGenerateBtn.addEventListener('click', async () => {
   const names = [];
   const traits = [];
-  const nameInputs = comicCatInputs.querySelectorAll('.cat-name-input');
-  const traitInputs = comicCatTraits.querySelectorAll('.cat-trait-input');
+  const nameInputs = comicNameInputs.querySelectorAll('.cat-name-input');
+  const traitInputsList = comicTraitInputs.querySelectorAll('.cat-trait-input');
 
   nameInputs.forEach(input => {
     const val = input.value.trim();
     if (val) names.push(val);
   });
-  traitInputs.forEach(input => {
+  traitInputsList.forEach(input => {
     const val = input.value.trim();
     if (val) traits.push(val);
   });
 
+  // If no names from comic tab, try shared config
   if (names.length === 0) {
-    alert('请至少输入一只猫咪的名字！');
-    return;
-  }
-  if (Object.keys(avatarImages).length === 0) {
-    alert('请至少上传一张猫咪头像！');
-    return;
+    if (sharedComicConfig.names.length > 0) {
+      sharedComicConfig.names.forEach((n, i) => {
+        if (i < names.length) names[i] = n;
+        else names.push(n);
+      });
+    }
+    if (names.length === 0) {
+      showToast('⚠️ 请至少输入一只猫咪的名字！');
+      return;
+    }
   }
 
-  // Default traits
   while (traits.length < names.length) {
     traits.push('性格独特，自有千秋');
   }
@@ -897,8 +1030,13 @@ comicGenerateBtn.addEventListener('click', async () => {
 
   // Disable button during generation
   comicGenerateBtn.disabled = true;
-  comicGenerateBtn.textContent = '⏳ 生成中...';
+  comicGenerateBtn.innerHTML = '<span class="spinner"></span> 生成中...';
   comicDownloadBtn.disabled = true;
+
+  // Show progress bar
+  comicProgress.style.display = 'block';
+  progressBar.style.width = '0%';
+  progressLabel.textContent = '准备生成中...';
 
   // Show results area
   comicResults.style.display = 'block';
@@ -906,15 +1044,19 @@ comicGenerateBtn.addEventListener('click', async () => {
   const outputEmpty = document.querySelector('#tab-comic .output-empty');
   if (outputEmpty) outputEmpty.style.display = 'none';
 
+  // Clear old URLs
+  generatedImageUrls.length = 0;
+
   const n = names.length;
   const data = catCharacterData[n] || catCharacterData[2];
 
-  // Generate scene descriptions using the script logic
+  // Generate scene descriptions
   const sceneDescriptions = generateComicSceneDescriptions(names, traits, data, style, hasDog);
 
   // Create scene cards
   for (let i = 0; i < 5; i++) {
     const scene = comicScenes[i];
+    scene.cnDesc = sceneDescriptions[i].sceneDesc;
     const card = document.createElement('div');
     card.className = 'comic-scene-card';
     card.id = `comicScene${i}`;
@@ -923,77 +1065,153 @@ comicGenerateBtn.addEventListener('click', async () => {
       <div class="scene-thumb">
         <div class="scene-loading" id="sceneLoading${i}">
           <div class="spinner"></div>
-          <div>正在绘制...</div>
+          <div>等待生成...</div>
         </div>
       </div>
       <div class="scene-info">
-        <div class="scene-number">Scene ${i + 1}</div>
+        <div class="scene-number">Scene ${i + 1} / 5</div>
         <div class="scene-title">${scene.title}</div>
+        <div class="scene-desc-cn" id="sceneDesc${i}">${scene.cnDesc}</div>
         <div class="scene-status" id="sceneStatus${i}">等待生成中...</div>
-        <div class="scene-prompt" id="scenePrompt${i}"></div>
+        <div class="scene-actions" id="sceneActions${i}" style="display:none;">
+          <button onclick="retryScene(${i})" class="secondary" style="padding:6px 12px;font-size:0.78rem;">🔄 重新生成</button>
+          <button onclick="downloadScene(${i})" class="secondary" style="padding:6px 12px;font-size:0.78rem;">💾 下载此图</button>
+        </div>
       </div>
     `;
 
     comicResults.appendChild(card);
   }
 
-  // Generate images one by one with delay for better UX
-  const generatedImages = [];
-
+  // Generate images sequentially
   for (let i = 0; i < 5; i++) {
+    const sceneCard = document.getElementById(`comicScene${i}`);
+    const loadingEl = sceneCard?.querySelector('#sceneLoading' + i);
+    const statusEl = sceneCard?.querySelector('#sceneStatus' + i);
+    const actionsEl = sceneCard?.querySelector('#sceneActions' + i);
+
+    const thumb = sceneCard?.querySelector('.scene-thumb');
+
+    const prompt = sceneDescriptions[i].prompt;
+    if (statusEl) statusEl.textContent = '🎨 正在绘制中...';
+    if (loadingEl) loadingEl.querySelector('div:last-child').textContent = '绘制第 ' + (i+1) + '/5 幕...';
+
+    // Update progress
+    const pct = Math.round(((i) / 5) * 100);
+    progressBar.style.width = pct + '%';
+    progressLabel.textContent = `正在绘制第 ${i+1}/5 幕...`;
+
     try {
-      const loadingEl = document.getElementById(`sceneLoading${i}`);
-      const statusEl = document.getElementById(`sceneStatus${i}`);
-      const promptEl = document.getElementById(`scenePrompt${i}`);
-      const thumbEl = card.querySelector('.scene-thumb') || document.querySelector(`#comicScene${i} .scene-thumb`);
-
-      const prompt = sceneDescriptions[i].prompt;
-      if (promptEl) promptEl.textContent = `Prompt: ${prompt}`;
-      if (statusEl) statusEl.textContent = '🎨 正在绘制中...';
-
       const imageUrl = await generateComicSceneImage(prompt, names, traits, hasDog, style, i);
-      generatedImages.push(imageUrl);
+      generatedImageUrls[i] = imageUrl;
 
       // Update card with result
-      const sceneCard = document.getElementById(`comicScene${i}`);
-      const thumb = sceneCard?.querySelector('.scene-thumb');
       if (thumb) {
-        thumb.innerHTML = `<img src="${imageUrl}" alt="场景${i+1}" />`;
+        thumb.innerHTML = `<img src="${imageUrl}" alt="场景${i+1}" onclick="window.open('${imageUrl}', '_blank')" style="cursor:pointer;" title="点击查看大图" />`;
       }
       if (statusEl) {
-        statusEl.textContent = `✅ 绘制完成 (${sceneDescriptions[i].sceneDesc})`;
+        statusEl.textContent = `✅ 绘制完成 — ${sceneDescriptions[i].sceneDesc}`;
+        statusEl.style.color = '#16a34a';
+        statusEl.style.fontStyle = 'normal';
       }
-
-      // Wait a bit between requests for better reliability
-      if (i < 4) {
-        await new Promise(r => setTimeout(r, 2000));
-      }
+      if (actionsEl) actionsEl.style.display = 'flex';
 
     } catch (err) {
       console.error(`Scene ${i} failed:`, err);
-      const sceneCard = document.getElementById(`comicScene${i}`);
-      const thumb = sceneCard?.querySelector('.scene-thumb');
       if (thumb) {
-        thumb.innerHTML = `<div class="scene-loading" style="color: #ef4444;">❌ 生成失败<br><small>${err.message}</small></div>`;
+        thumb.innerHTML = `
+          <div class="scene-loading" style="color:#ef4444;">
+            <div style="font-size:2rem;">❌</div>
+            <div style="font-size:0.82rem;">生成失败</div>
+            <div style="font-size:0.72rem;margin-top:4px;">${err.message}</div>
+          </div>`;
       }
-      const statusEl = document.getElementById(`sceneStatus${i}`);
-      if (statusEl) statusEl.textContent = '❌ 生成失败';
+      if (statusEl) {
+        statusEl.textContent = '❌ 生成失败，可点击下方「重新生成' + (i+1) + '幕」重试';
+        statusEl.style.color = '#ef4444';
+        statusEl.style.fontStyle = 'normal';
+      }
+      if (actionsEl) actionsEl.style.display = 'flex';
+    }
+
+    // Wait between requests
+    if (i < 4) {
+      await new Promise(r => setTimeout(r, 1500));
     }
   }
 
-  // Re-enable button
-  comicGenerateBtn.disabled = false;
-  comicGenerateBtn.textContent = '🎨 生成漫画连环画';
+  // Complete
+  progressBar.style.width = '100%';
+  progressLabel.textContent = '✅ 全部绘制完成！';
 
-  if (generatedImages.length > 0) {
+  comicGenerateBtn.disabled = false;
+  comicGenerateBtn.innerHTML = '🎨 生成漫画连环画';
+
+  if (generatedImageUrls.some(u => u !== undefined && u !== null)) {
     comicDownloadBtn.disabled = false;
   }
+
+  // Also re-enable bridge button in zhenguan tab
+  const bridgeBtn = document.getElementById('openComicFromScript');
+  if (bridgeBtn) bridgeBtn.disabled = false;
 });
 
-// Generate comic scene image via Hermes gateway API
-// The gateway runs locally on port 18789 and proxies to the image generation provider
+// ---- Retry individual scene ----
+window.retryScene = async function(index) {
+  const names = [];
+  const traits = [];
+  const nameInputs = comicNameInputs.querySelectorAll('.cat-name-input');
+  const traitInputsList = comicTraitInputs.querySelectorAll('.cat-trait-input');
+  nameInputs.forEach(input => { const v = input.value.trim(); if (v) names.push(v); });
+  traitInputsList.forEach(input => { const v = input.value.trim(); if (v) traits.push(v); });
+  while (traits.length < names.length) traits.push('性格独特');
+
+  const style = document.querySelector('input[name="comicStoryStyle"]:checked')?.value || 'drama';
+  const hasDog = document.getElementById('comicHasDog')?.checked || false;
+  const data = catCharacterData[names.length] || catCharacterData[2];
+  const sceneDescriptions = generateComicSceneDescriptions(names, traits, data, style, hasDog);
+
+  const sceneCard = document.getElementById(`comicScene${index}`);
+  const thumb = sceneCard?.querySelector('.scene-thumb');
+  const statusEl = sceneCard?.querySelector('#sceneStatus' + index);
+
+  if (thumb) thumb.innerHTML = '<div class="scene-loading"><div class="spinner"></div><div>重新绘制中...</div></div>';
+  if (statusEl) { statusEl.textContent = '🔄 重新生成中...'; statusEl.style.color = ''; statusEl.style.fontStyle = 'italic'; }
+
+  try {
+    const imageUrl = await generateComicSceneImage(sceneDescriptions[index].prompt, names, traits, hasDog, style, index);
+    generatedImageUrls[index] = imageUrl;
+    if (thumb) thumb.innerHTML = `<img src="${imageUrl}" alt="场景${index+1}" onclick="window.open('${imageUrl}', '_blank')" style="cursor:pointer;" title="点击查看大图" />`;
+    if (statusEl) { statusEl.textContent = `✅ 重新生成完成`; statusEl.style.color = '#16a34a'; statusEl.style.fontStyle = 'normal'; }
+  } catch (err) {
+    if (thumb) thumb.innerHTML = `<div class="scene-loading" style="color:#ef4444;"><div>❌</div><div>生成失败: ${err.message}</div></div>`;
+    if (statusEl) { statusEl.textContent = '❌ 生成失败'; statusEl.style.color = '#ef4444'; }
+  }
+};
+
+// ---- Download individual scene ----
+window.downloadScene = async function(index) {
+  const url = generatedImageUrls[index];
+  if (!url) return;
+  try {
+    const response = await fetch(url);
+    const blob = await response.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `漫画_第${index+1}幕.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  } catch (err) {
+    console.error('Download failed:', err);
+    // Fallback: open in new tab
+    window.open(url, '_blank');
+  }
+};
+
+// ---- Generate image via Hermes gateway ----
 async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, sceneIndex) {
-  // Build the image prompt
   const catDesc = names.map((name, i) => {
     const avatarIndex = Object.keys(avatarImages).find(k => parseInt(k) <= i && avatarImages[parseInt(k)]);
     const avatarNote = avatarIndex ? ` [cat ${name} avatar reference]` : '';
@@ -1006,21 +1224,20 @@ async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, 
     romance: 'sweet manga'
   }[style] || 'manga';
 
-  const dogNote = hasDog ? ', and a cute dog character in the scene' : '';
+  const dogNote = hasDog ? ', and a cute dog character' : '';
 
-  const prompt = `A manga/comic illustration in ${styleKeyword} style, featuring cats: ${catDesc}. ${sceneDesc}.
-    Each cat should have a distinct personality expression.
-    Clean manga style, bold outlines, cel-shaded coloring, expressive anime-style cat faces.
-    Panel-style composition${dogNote}. Chinese comic aesthetic, warm lighting, high detail.`;
+  const prompt = `A manga/comic illustration in ${styleKeyword} style, featuring cats: ${catDesc}.
+    ${sceneDesc}.
+    Each cat should have a distinct personality expression with anime-style face.
+    Clean manga style, bold outlines, cel-shaded coloring.
+    Panel-style composition${dogNote}.
+    Chinese webtoon aesthetic, warm lighting, high detail, 4k.`;
 
-  // Try the local Hermes gateway (API server runs on port 8642)
   const gatewayUrl = 'http://localhost:8642/v1/images/generations';
 
   const response = await fetch(gatewayUrl, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       model: 'agnes-image-2.1-flash',
       prompt: prompt,
@@ -1035,23 +1252,20 @@ async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, 
   }
 
   const data = await response.json();
-  if (data.data && data.data[0] && data.data[0].url) {
-    return data.data[0].url;
-  } else if (data.data && data.data[0] && data.data[0].b64_json) {
-    return `data:image/png;base64,${data.data[0].b64_json}`;
-  } else {
-    throw new Error('无法解析图片结果');
+  if (data.data && data.data[0]) {
+    if (data.data[0].url) return data.data[0].url;
+    if (data.data[0].b64_json) return `data:image/png;base64,${data.data[0].b64_json}`;
   }
+  throw new Error('无法解析图片结果');
 }
 
-// Scene description generator
+// ---- Scene description generator ----
 function generateComicSceneDescriptions(names, traits, data, style, hasDog) {
   const n = names.length;
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];
   const openers = dramaLines[style].openings;
   const middles = dramaLines[style].middle;
   const details = palaceLifeDetails;
-
   const scenes = [];
 
   // Scene 1: Opening
@@ -1102,33 +1316,42 @@ function generateComicSceneDescriptions(names, traits, data, style, hasDog) {
   return scenes;
 }
 
-// Download all comic images
+// ---- Download all comic images ----
 async function downloadAllComicImages() {
-  const sceneCards = comicResults.querySelectorAll('.comic-scene-card');
-  for (let i = 0; i < sceneCards.length; i++) {
-    const img = sceneCards[i]?.querySelector('.scene-thumb img');
-    if (img) {
-      try {
-        const response = await fetch(img.src);
-        const blob = await response.blob();
-        const ext = img.src.startsWith('data:') ? (img.src.includes('jpeg') ? '.jpg' : '.png') : '.png';
-        const a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = `漫画场景_${i+1}.png`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(a.href);
-      } catch (err) {
-        console.error(`Download scene ${i} failed:`, err);
-      }
-      // Small delay between downloads
-      await new Promise(r => setTimeout(r, 500));
+  for (let i = 0; i < generatedImageUrls.length; i++) {
+    const url = generatedImageUrls[i];
+    if (!url) continue;
+    try {
+      const response = await fetch(url);
+      const blob = await response.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `漫画_第${i+1}幕.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    } catch (err) {
+      console.error(`Download scene ${i} failed:`, err);
+      // Fallback: open URL
+      window.open(url, '_blank');
     }
+    await new Promise(r => setTimeout(r, 500));
   }
 }
 
 comicDownloadBtn?.addEventListener('click', downloadAllComicImages);
+
+// ---- Re-enable bridge button after script generation ----
+const originalGenerateBtnClick = generateBtn;
+const origClickHandler = generateBtn.onclick;
+generateBtn?.addEventListener('click', () => {
+  // Will enable bridge after a short delay (script will appear)
+  setTimeout(() => {
+    const bridgeBtn = document.getElementById('openComicFromScript');
+    if (bridgeBtn) bridgeBtn.disabled = false;
+  }, 500);
+});
 
 
 // ========== Original code (九宫格切图) ==========

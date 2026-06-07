@@ -128,7 +128,6 @@
             <button id="generateBtn" class="primary-btn">🎬 生成甄嬛传剧本</button>
             <button id="copyBtn" class="secondary" disabled>📋 复制剧本</button>
             <button id="regenerateBtn" class="secondary" disabled>🔄 重新生成</button>
-            <button id="generateComicBtn" class="secondary" disabled>🎨 生成连环画</button>
           </div>
         </div>
 
@@ -139,6 +138,13 @@
             <p style="color: var(--muted); font-size: 0.9rem;">你的猫咪们，就是后宫里的妃嫔们~</p>
           </div>
           <div class="output-content" id="outputContent" style="display: none;"></div>
+        </div>
+
+        <!-- Bridge to comic tab -->
+        <div class="zhenguan-comic-bridge">
+          <button id="openComicFromScript" class="bridge-btn" disabled>
+            🎨 基于此剧本生成连环画
+          </button>
         </div>
       </section>
     </section>
@@ -213,12 +219,20 @@
           <div class="comic-scene-info">
             <h3>📋 将生成以下 5 幕连环画：</h3>
             <div class="scene-list">
-              <div class="scene-item"><span class="scene-num">1</span><span class="scene-desc">开场 - 后宫日常</span></div>
+              <div class="scene-item"><span class="scene-num">1</span><span class="scene-desc">开场 — 后宫日常</span></div>
               <div class="scene-item"><span class="scene-num">2</span><span class="scene-desc">猫咪们的每日生活</span></div>
               <div class="scene-item"><span class="scene-num">3</span><span class="scene-desc">冲突爆发</span></div>
               <div class="scene-item"><span class="scene-num">4</span><span class="scene-desc">高潮对决</span></div>
-              <div class="scene-item"><span class="scene-num">5</span><span class="scene-desc">结局 - 温馨收尾</span></div>
+              <div class="scene-item"><span class="scene-num">5</span><span class="scene-desc">结局 — 温馨收尾</span></div>
             </div>
+          </div>
+
+          <!-- Progress bar -->
+          <div class="comic-progress" id="comicProgress" style="display:none;">
+            <div class="progress-bar-container">
+              <div class="progress-bar" id="progressBar"></div>
+            </div>
+            <div class="progress-label" id="progressLabel">准备生成中...</div>
           </div>
 
           <div class="actions">
