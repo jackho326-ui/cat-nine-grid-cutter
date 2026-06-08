@@ -1003,7 +1003,10 @@ function showToast(message) {
 }
 
 // ---- Comic Generation ----
+// The Comic tab is now the MAIN tab. It has all inputs including cat count.
+// The generate button does: generate script → extract 5 scenes from script → generate comic from those scenes.
 comicGenerateBtn.addEventListener('click', async () => {
+  // Collect names from comic tab inputs (which may have been pre-filled from 甄嬛传 tab)
   const names = [];
   const traits = [];
   const nameInputs = comicNameInputs.querySelectorAll('.cat-name-input');
@@ -1018,26 +1021,25 @@ comicGenerateBtn.addEventListener('click', async () => {
     if (val) traits.push(val);
   });
 
-  // If no names from comic tab, try shared config
+  // Fallback to shared config if comic inputs are empty
   if (names.length === 0) {
     if (sharedComicConfig.names.length > 0) {
-      sharedComicConfig.names.forEach((n, i) => {
-        if (i < names.length) names[i] = n;
-        else names.push(n);
-      });
+      names.push(...sharedComicConfig.names);
     }
     if (names.length === 0) {
       showToast('⚠️ 请至少输入一只猫咪的名字！');
       return;
     }
   }
-
   while (traits.length < names.length) {
     traits.push('性格独特，自有千秋');
   }
 
+  const catCount = nameInputs.length;
   const style = document.querySelector('input[name="comicStoryStyle"]:checked')?.value || 'drama';
   const hasDog = document.getElementById('comicHasDog')?.checked || false;
+  const n = names.length;
+  const data = catCharacterData[n] || catCharacterData[2];
 
   // Disable button during generation
   comicGenerateBtn.disabled = true;
@@ -1047,27 +1049,37 @@ comicGenerateBtn.addEventListener('click', async () => {
   // Show progress bar
   comicProgress.style.display = 'block';
   progressBar.style.width = '0%';
-  progressLabel.textContent = '准备生成中...';
+  progressLabel.textContent = '📜 正在生成剧本...';
 
   // Show results area
   comicResults.style.display = 'block';
   comicResults.innerHTML = '';
   const outputEmpty = document.querySelector('#tab-comic .output-empty');
   if (outputEmpty) outputEmpty.style.display = 'none';
-
-  // Clear old URLs
   generatedImageUrls.length = 0;
 
-  const n = names.length;
-  const data = catCharacterData[n] || catCharacterData[2];
+  // ========== STEP 1: Generate the 甄嬛传 script ==========
+  const scriptText = generateZhenguanScript(names, traits, data, style, hasDog);
 
-  // Generate scene descriptions
-  const sceneDescriptions = generateComicSceneDescriptions(names, traits, data, style, hasDog);
+  // Show script preview
+  const scriptPreviewEl = document.getElementById('comicScriptPreview');
+  const scriptContentEl = document.getElementById('comicScriptContent');
+  if (scriptPreviewEl && scriptContentEl) {
+    scriptPreviewEl.style.display = 'block';
+    scriptContentEl.innerHTML = `<pre style="margin:0;white-space:pre-wrap;line-height:1.8;font-size:0.95rem;color:var(--text);font-family:inherit;">${scriptText}</pre>`;
+    // Scroll to script preview
+    scriptPreviewEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
 
-  // Create scene cards
+  await new Promise(r => setTimeout(r, 1200)); // Let user see the script
+
+  // ========== STEP 2: Extract 5 scenes from the script ==========
+  const scriptScenes = extractScriptScenes(scriptText, names, traits, data, style, hasDog);
+
+  // ========== STEP 3: Generate comic from script scenes ==========
   for (let i = 0; i < 5; i++) {
     const scene = comicScenes[i];
-    scene.cnDesc = sceneDescriptions[i].sceneDesc;
+    const scriptScene = scriptScenes[i];
     const card = document.createElement('div');
     card.className = 'comic-scene-card';
     card.id = `comicScene${i}`;
@@ -1082,7 +1094,7 @@ comicGenerateBtn.addEventListener('click', async () => {
       <div class="scene-info">
         <div class="scene-number">Scene ${i + 1} / 5</div>
         <div class="scene-title">${scene.title}</div>
-        <div class="scene-desc-cn" id="sceneDesc${i}">${scene.cnDesc}</div>
+        <div class="scene-desc-cn" id="sceneDesc${i}">${scriptScene.sceneDesc}</div>
         <div class="scene-status" id="sceneStatus${i}">等待生成中...</div>
         <div class="scene-actions" id="sceneActions${i}" style="display:none;">
           <button onclick="retryScene(${i})" class="secondary" style="padding:6px 12px;font-size:0.78rem;">🔄 重新生成</button>
@@ -1100,14 +1112,16 @@ comicGenerateBtn.addEventListener('click', async () => {
     const loadingEl = sceneCard?.querySelector('#sceneLoading' + i);
     const statusEl = sceneCard?.querySelector('#sceneStatus' + i);
     const actionsEl = sceneCard?.querySelector('#sceneActions' + i);
-
     const thumb = sceneCard?.querySelector('.scene-thumb');
+    const descEl = sceneCard?.querySelector('#sceneDesc' + i);
 
-    const prompt = sceneDescriptions[i].prompt;
+    const scriptScene = scriptScenes[i];
+    const prompt = scriptScene.prompt;
+
+    if (descEl) descEl.textContent = scriptScene.sceneDesc;
     if (statusEl) statusEl.textContent = '🎨 正在绘制中...';
     if (loadingEl) loadingEl.querySelector('div:last-child').textContent = '绘制第 ' + (i+1) + '/5 幕...';
 
-    // Update progress
     const pct = Math.round(((i) / 5) * 100);
     progressBar.style.width = pct + '%';
     progressLabel.textContent = `正在绘制第 ${i+1}/5 幕...`;
@@ -1116,12 +1130,11 @@ comicGenerateBtn.addEventListener('click', async () => {
       const imageUrl = await generateComicSceneImage(prompt, names, traits, hasDog, style, i);
       generatedImageUrls[i] = imageUrl;
 
-      // Update card with result
       if (thumb) {
         thumb.innerHTML = `<img src="${imageUrl}" alt="场景${i+1}" onclick="window.open('${imageUrl}', '_blank')" style="cursor:pointer;" title="点击查看大图" />`;
       }
       if (statusEl) {
-        statusEl.textContent = `✅ 绘制完成 — ${sceneDescriptions[i].sceneDesc}`;
+        statusEl.textContent = `✅ 绘制完成 — ${scriptScene.sceneDesc}`;
         statusEl.style.color = '#16a34a';
         statusEl.style.fontStyle = 'normal';
       }
@@ -1130,12 +1143,7 @@ comicGenerateBtn.addEventListener('click', async () => {
     } catch (err) {
       console.error(`Scene ${i} failed:`, err);
       if (thumb) {
-        thumb.innerHTML = `
-          <div class="scene-loading" style="color:#ef4444;">
-            <div style="font-size:2rem;">❌</div>
-            <div style="font-size:0.82rem;">生成失败</div>
-            <div style="font-size:0.72rem;margin-top:4px;">${err.message}</div>
-          </div>`;
+        thumb.innerHTML = `<div class="scene-loading" style="color:#ef4444;"><div style="font-size:2rem;">❌</div><div style="font-size:0.82rem;">生成失败</div><div style="font-size:0.72rem;margin-top:4px;">${err.message}</div></div>`;
       }
       if (statusEl) {
         statusEl.textContent = '❌ 生成失败，可点击下方「重新生成' + (i+1) + '幕」重试';
@@ -1145,10 +1153,7 @@ comicGenerateBtn.addEventListener('click', async () => {
       if (actionsEl) actionsEl.style.display = 'flex';
     }
 
-    // Wait between requests
-    if (i < 4) {
-      await new Promise(r => setTimeout(r, 1500));
-    }
+    if (i < 4) await new Promise(r => setTimeout(r, 1500));
   }
 
   // Complete
@@ -1156,13 +1161,13 @@ comicGenerateBtn.addEventListener('click', async () => {
   progressLabel.textContent = '✅ 全部绘制完成！';
 
   comicGenerateBtn.disabled = false;
-  comicGenerateBtn.innerHTML = '🎨 生成漫画连环画';
+  comicGenerateBtn.innerHTML = '🎨 一键生成剧本+连环画';
 
   if (generatedImageUrls.some(u => u !== undefined && u !== null)) {
     comicDownloadBtn.disabled = false;
   }
 
-  // Also re-enable bridge button in zhenguan tab
+  // Re-enable bridge button
   const bridgeBtn = document.getElementById('openComicFromScript');
   if (bridgeBtn) bridgeBtn.disabled = false;
 });
@@ -1179,18 +1184,24 @@ window.retryScene = async function(index) {
 
   const style = document.querySelector('input[name="comicStoryStyle"]:checked')?.value || 'drama';
   const hasDog = document.getElementById('comicHasDog')?.checked || false;
+  const n = names.length;
   const data = catCharacterData[names.length] || catCharacterData[2];
-  const sceneDescriptions = generateComicSceneDescriptions(names, traits, data, style, hasDog);
+  // Use extractScriptScenes (same as the main flow)
+  const scriptText = generateZhenguanScript(names, traits, data, style, hasDog);
+  const scriptScenes = extractScriptScenes(scriptText, names, traits, data, style, hasDog);
 
   const sceneCard = document.getElementById(`comicScene${index}`);
   const thumb = sceneCard?.querySelector('.scene-thumb');
   const statusEl = sceneCard?.querySelector('#sceneStatus' + index);
+  const descEl = sceneCard?.querySelector('#sceneDesc' + index);
+  const scriptScene = scriptScenes[index];
 
   if (thumb) thumb.innerHTML = '<div class="scene-loading"><div class="spinner"></div><div>重新绘制中...</div></div>';
   if (statusEl) { statusEl.textContent = '🔄 重新生成中...'; statusEl.style.color = ''; statusEl.style.fontStyle = 'italic'; }
+  if (descEl) descEl.textContent = scriptScene.sceneDesc;
 
   try {
-    const imageUrl = await generateComicSceneImage(sceneDescriptions[index].prompt, names, traits, hasDog, style, index);
+    const imageUrl = await generateComicSceneImage(scriptScene.prompt, names, traits, hasDog, style, index);
     generatedImageUrls[index] = imageUrl;
     if (thumb) thumb.innerHTML = `<img src="${imageUrl}" alt="场景${index+1}" onclick="window.open('${imageUrl}', '_blank')" style="cursor:pointer;" title="点击查看大图" />`;
     if (statusEl) { statusEl.textContent = `✅ 重新生成完成`; statusEl.style.color = '#16a34a'; statusEl.style.fontStyle = 'normal'; }
@@ -1282,7 +1293,78 @@ async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, 
   throw new Error('无法解析图片结果');
 }
 
-// ---- Scene description generator ----
+// ---- Extract 5 scenes from the generated 甄嬛传 script for comic generation ----
+function extractScriptScenes(scriptText, names, traits, data, style, hasDog) {
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  const details = palaceLifeDetails;
+  const middles = dramaLines[style].middle;
+  const n = names.length;
+  const scenes = [];
+
+  // We have the script text which was generated using the same logic as the 甄嬛传 tab.
+  // The script has 5 sections (开场, 日常, 冲突, 高潮, 结局). We create scene descriptions
+  // that blend the script's narrative with vivid visual descriptions for image generation.
+
+  // Scene 1: 开场 — Opening scene with cats in their "palaces"
+  const openerLine = pick(dramaLines[style].openings);
+  let s1 = '';
+  if (n >= 3) {
+    s1 = `${names[0]}站在猫爬架最高处巡视领地，阳光从窗户洒进来。`;
+    s1 += names.slice(1).map((nm, i) => ` ${nm}在${pick(details)}。`).join('');
+  } else {
+    s1 = `${names[0]}在${pick(details)}。${names[1]}在${pick(details)}。`;
+  }
+  scenes.push({
+    sceneDesc: '后宫日常开场',
+    prompt: `${openerLine}开场。${s1} 温馨宁静的午后，${n}只猫咪在宫殿般的客厅里各据一方，阳光透过窗帘洒在地板上。背景是家具搭建的"宫殿"。多格漫画分镜风格，每只猫都有独特站位。`
+  });
+
+  // Scene 2: 日常 — Each cat doing their thing with personality
+  let s2 = '';
+  for (let i = 0; i < n; i++) {
+    const nm = names[i];
+    const tr = traits[i] || '性格独特';
+    s2 += `${nm}(${tr})正在${pick(details)}。`;
+  }
+  scenes.push({
+    sceneDesc: '猫咪们的日常',
+    prompt: `展示${n}只猫咪各自的日常活动场景。${s2} 多格漫画分镜，每只猫都有独特的表情和动作，背景温馨。${pick(middles)} 漫画风格，夸张有趣。`
+  });
+
+  // Scene 3: 冲突 — Conflict scene
+  const conflict = pick(data.conflicts);
+  const s1Name = pick(names);
+  const s2Name = pick(names.filter(x => x !== s1Name));
+  scenes.push({
+    sceneDesc: '冲突爆发',
+    prompt: `戏剧性冲突场景。${s1Name}和${s2Name}为${conflict}而争执。${s1Name}怒目而视，${s2Name}不屑地甩尾巴。${pick(middles)} 紧张的漫画分镜，夸张的表情和动作，戏剧性构图。`
+  });
+
+  // Scene 4: 高潮 — Climax with or without dog
+  let dogIntro = '';
+  let dogOutro = '';
+  if (hasDog) {
+    dogIntro = '🐕 ' + pick(dogCharacterData.titles) + '大摇大摆闯入，所有猫震惊回头。';
+    dogOutro = '狗狗摇着尾巴，仿佛局外人。';
+  }
+  const s3Name1 = pick(names);
+  const s3Name2 = pick(names.filter(x => x !== s3Name1));
+  scenes.push({
+    sceneDesc: '高潮对决',
+    prompt: `${dogIntro} ${s3Name1}和${s3Name2}正面交锋，夸张的漫画风格对峙画面。${pick(middles)} ${dogOutro} 戏剧性强烈的漫画分镜，动态姿势，强烈光影对比。`
+  });
+
+  // Scene 5: 结局 — Heartwarming conclusion
+  scenes.push({
+    sceneDesc: '温馨结局',
+    prompt: `所有猫咪和狗狗(如果有的话)依偎在一起的场景。${pick(names)}主动蹭了蹭${pick(names)}，${pick(middles)} ${pick(dramaLines[style].endings)} 温暖的阳光洒在猫咪们身上，温馨和谐。${hasDog ? '狗狗也加入其中。' : ''} 柔和暖色调，治愈感。`
+  });
+
+  return scenes;
+}
+
+// ---- OLD: Scene description generator (kept for backwards compatibility) ----
+// Kept because retryScene() may reference it. Now it uses extractScriptScenes instead.
 function generateComicSceneDescriptions(names, traits, data, style, hasDog) {
   const n = names.length;
   const pick = arr => arr[Math.floor(Math.random() * arr.length)];

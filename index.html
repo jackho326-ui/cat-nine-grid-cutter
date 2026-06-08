@@ -159,8 +159,21 @@
         </div>
 
         <div class="comic-form">
+          <!-- Step 1: Cat count -->
           <div class="form-group">
-            <label>第一步：上传猫咪头像（方形最佳，AI 会自动裁剪）</label>
+            <label>第一步：选择猫咪数量</label>
+            <div class="radio-group" id="comicCatCount">
+              <label class="radio-label"><input type="radio" name="comicCatCount" value="2" checked /> 2 只</label>
+              <label class="radio-label"><input type="radio" name="comicCatCount" value="3" /> 3 只</label>
+              <label class="radio-label"><input type="radio" name="comicCatCount" value="4" /> 4 只</label>
+              <label class="radio-label"><input type="radio" name="comicCatCount" value="5" /> 5 只</label>
+              <label class="radio-label"><input type="radio" name="comicCatCount" value="6" /> 6 只及以上</label>
+            </div>
+          </div>
+
+          <!-- Step 2: Avatar uploads -->
+          <div class="form-group">
+            <label>第二步：上传猫咪头像（方形最佳，AI 会自动裁剪）</label>
             <div class="avatar-grid" id="avatarGrid">
               <div class="avatar-slot" data-index="0">
                 <div class="avatar-upload" id="avatarUpload0">
@@ -183,24 +196,27 @@
             </div>
           </div>
 
+          <!-- Step 3: Cat names -->
           <div class="form-group">
-            <label>第二步：输入猫咪名字</label>
+            <label>第三步：输入每只猫的名字</label>
             <div class="cat-inputs" id="comicCatInputs">
               <input type="text" class="cat-name-input" placeholder="猫1 的名字（如：橘子）" />
               <input type="text" class="cat-name-input" placeholder="猫2 的名字（如：花花）" />
             </div>
           </div>
 
+          <!-- Step 4: Cat traits -->
           <div class="form-group">
-            <label>第三步：输入每只猫的性格特点</label>
+            <label>第四步：输入每只猫的性格特点</label>
             <div class="cat-traits" id="comicCatTraits">
               <textarea class="cat-trait-input" placeholder="橘子：贪吃、粘人、胆子小" rows="1"></textarea>
               <textarea class="cat-trait-input" placeholder="花花：高冷、优雅、喜欢高处" rows="1"></textarea>
             </div>
           </div>
 
+          <!-- Step 5: Script style -->
           <div class="form-group">
-            <label>第四步：选择剧本风格</label>
+            <label>第五步：选择剧本风格</label>
             <div class="radio-group" id="comicStoryStyle">
               <label class="radio-label"><input type="radio" name="comicStoryStyle" value="drama" checked /> 宫斗大戏</label>
               <label class="radio-label"><input type="radio" name="comicStoryStyle" value="comedy" /> 轻松搞笑</label>
@@ -208,15 +224,23 @@
             </div>
           </div>
 
+          <!-- Step 6: Dog option -->
           <div class="form-group">
-            <label>第五步：添加一条狗？</label>
+            <label>第六步：添加一条狗？</label>
             <label class="filter-toggle">
               <input id="comicHasDog" type="checkbox" />
-              <span>我家有狗</span>
+              <span>我家有狗（它会成为最大反派/喜剧担当）</span>
             </label>
           </div>
 
-          <div class="comic-scene-info">
+          <!-- Script preview (shown during generation) -->
+          <div class="comic-script-preview" id="comicScriptPreview" style="display:none;">
+            <h3>📜 剧本预览（AI 将根据此剧本生成连环画）</h3>
+            <div class="output-content" id="comicScriptContent"></div>
+          </div>
+
+          <!-- Scene descriptions (will be replaced by script-driven scenes) -->
+          <div class="comic-scene-info" id="comicSceneInfo">
             <h3>📋 将生成以下 5 幕连环画：</h3>
             <div class="scene-list">
               <div class="scene-item"><span class="scene-num">1</span><span class="scene-desc">开场 — 后宫日常</span></div>
@@ -236,7 +260,7 @@
           </div>
 
           <div class="actions">
-            <button id="comicGenerateBtn" class="primary-btn">🎨 生成漫画连环画</button>
+            <button id="comicGenerateBtn" class="primary-btn">🎨 一键生成剧本+连环画</button>
             <button id="comicDownloadBtn" class="secondary" disabled>📥 下载全部连环画</button>
           </div>
         </div>
