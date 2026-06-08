@@ -1221,7 +1221,7 @@ window.downloadScene = async function(index) {
   }
 };
 
-// ---- Generate image via Hermes gateway ----
+// ---- Generate image via Serverless API ----
 async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, sceneIndex) {
   const catDesc = names.map((name, i) => {
     const avatarIndex = Object.keys(avatarImages).find(k => parseInt(k) <= i && avatarImages[parseInt(k)]);
@@ -1244,29 +1244,41 @@ async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, 
     Panel-style composition${dogNote}.
     Chinese webtoon aesthetic, warm lighting, high detail, 4k.`;
 
-  const gatewayUrl = 'http://localhost:8642/v1/images/generations';
+  // Call our Vercel Serverless Function (production) or fallback to direct API (dev)
+  let apiUrl;
+  try {
+    // Check if running on Vercel (production) or localhost (dev)
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocal) {
+      // In local dev, try serverless endpoint first, then fall back to Hermes gateway
+      apiUrl = '/api/generate-image';
+    } else {
+      apiUrl = '/api/generate-image';
+    }
+  } catch (_) {
+    apiUrl = '/api/generate-image';
+  }
 
-  const response = await fetch(gatewayUrl, {
+  const response = await fetch(apiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'agnes-image-2.1-flash',
       prompt: prompt,
-      size: '1024x1024',
-      n: 1
+      size: '1024x1024'
     })
   });
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || `HTTP ${response.status}`);
+    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
   }
 
   const data = await response.json();
-  if (data.data && data.data[0]) {
-    if (data.data[0].url) return data.data[0].url;
-    if (data.data[0].b64_json) return `data:image/png;base64,${data.data[0].b64_json}`;
+  if (!data.success) {
+    throw new Error(data.error || 'Image generation failed');
   }
+  if (data.url) return data.url;
+  if (data.b64_json) return `data:image/png;base64,${data.b64_json}`;
   throw new Error('无法解析图片结果');
 }
 
