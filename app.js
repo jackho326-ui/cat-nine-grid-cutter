@@ -1232,6 +1232,72 @@ window.downloadScene = async function(index) {
   }
 };
 
+// ---- Cinematic/Realistic image prompts for each scene ----
+function generateCinemaPrompt(sceneDesc, names, traits, hasDog, style, sceneIndex) {
+  const dogIntro = hasDog ? `A loyal, slightly confused large dog wearing a miniature red-and-yellow Chinese imperial guard armor and hat, standing stiffly at attention, dust motes floating in the air, sunset lighting, epic scale, photorealistic, detailed texture of the armor and fur, bokeh background.` : '';
+  const dogOutro = hasDog ? ' The dog joins them peacefully.' : '';
+
+  const prompts = [
+    // Scene 0: Opening — Empress cat on throne
+    `Cinematic movie shot, 35mm film, f/1.8 depth of field. An elegant cream-colored British Shorthair cat wearing a tiny, exquisitely detailed Chinese Qing dynasty Empress headdress. The cat sits regally on a miniature imperial throne inside a dark, atmospheric palace hall. Dramatic low-key lighting, warm candlelight casting long shadows, highly detailed fur texture, photorealistic, moody, royal atmosphere.`,
+
+    // Scene 1: Daily life — Cat with treats
+    `Cinematic close-up, highly detailed photorealistic. A mischievous ginger tabby cat wearing a colorful, detailed Qing dynasty concubine costume, greedily reaching its paw towards a tiny imperial plate of cat treats on a low wooden table. The background is a beautifully blurred ancient Chinese royal room, soft backlighting, golden hour sun rays filtering through window grates, expression of comical determination, 8k resolution.`,
+
+    // Scene 2: Conflict
+    `Cinematic medium shot. Two cats in elaborate Qing dynasty costumes facing each other in a tense confrontation. One wears a grand Empress robe with peacock feathers, the other a humble concubine dress. Tension in the air, dramatic shadows, shallow depth of field, cinematic color grading, photorealistic.`,
+
+    // Scene 3: Climax — with or without dog
+    (hasDog ? dogIntro : `Cinematic wide shot. A fierce confrontation between two cats in opulent Qing dynasty regalia. Dramatic low-key lighting, steam rising, debris floating, 35mm film look, photorealistic, highly detailed.`) +
+    (hasDog ? dogIntro : `, a third cat lunges forward dramatically.`),
+
+    // Scene 5: Ending — Peaceful
+    `Cinematic shot, warm candlelight, soft bokeh. All cats huddled together sleeping on an imperial silk cushion. Peaceful palace interior, golden hour rays through paper screens, photorealistic, highly detailed fur, heartwarming atmosphere, movie still quality.`
+  ];
+
+  return prompts[sceneIndex] || prompts[0];
+}
+
+// ---- Cinema/Realistic image generator ----
+async function generateCinemaImage(sceneDesc, names, traits, hasDog, style, sceneIndex) {
+  // Use hand-crafted cinematic prompts for the 5 scenes
+  const prompt = generateCinemaPrompt(sceneDesc, names, traits, hasDog, style, sceneIndex);
+
+  const response = await fetch('https://image.pollinations.ai/prompt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prompt: prompt,
+      width: 1024,
+      height: 1024,
+      model: 'flux-realism',
+      nologo: true
+    })
+  });
+
+  if (!response.ok) {
+    // Fallback: try 'flux' model if 'flux-realism' fails
+    console.warn('flux-realism failed, falling back to flux...');
+    const r2 = await fetch('https://image.pollinations.ai/prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        prompt: prompt + ', photorealistic, 8k, ultra detailed',
+        width: 1024,
+        height: 1024,
+        model: 'flux',
+        nologo: true
+      })
+    });
+    if (!r2.ok) throw new Error(`HTTP ${r2.status}: ${r2.statusText}`);
+    const blob = await r2.blob();
+    return URL.createObjectURL(blob);
+  }
+
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+}
+
 // ---- Generate image via Pollinations AI (free, no API key needed) ----
 async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, sceneIndex) {
   const catDesc = names.map((name, i) => {
@@ -1239,6 +1305,10 @@ async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, 
     const avatarNote = avatarIndex ? ` [cat ${name} avatar reference]` : '';
     return name + avatarNote;
   }).join('、');
+
+  // Get image style preference (manga or cinema)
+  const imageStyleEl = document.querySelector('input[name="comicImageStyle"]:checked');
+  const imageStyle = imageStyleEl ? imageStyleEl.value : 'manga';
 
   const styleKeyword = {
     drama: 'dramatic manga',
@@ -1248,6 +1318,12 @@ async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, 
 
   const dogNote = hasDog ? ', and a cute dog character' : '';
 
+  if (imageStyle === 'cinema') {
+    // ---- Cinema/Realistic style ----
+    return generateCinemaImage(sceneDesc, names, traits, hasDog, style, sceneIndex);
+  }
+
+  // ---- Manga style (original) ----
   const prompt = `A manga/comic illustration in ${styleKeyword} style, featuring cats: ${catDesc}.
     ${sceneDesc}.
     Each cat should have a distinct personality expression with anime-style face.
