@@ -1232,7 +1232,7 @@ window.downloadScene = async function(index) {
   }
 };
 
-// ---- Generate image by calling Agnes AI API directly ----
+// ---- Generate image via Pollinations AI (free, no API key needed) ----
 async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, sceneIndex) {
   const catDesc = names.map((name, i) => {
     const avatarIndex = Object.keys(avatarImages).find(k => parseInt(k) <= i && avatarImages[parseInt(k)]);
@@ -1255,37 +1255,33 @@ async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, 
     Panel-style composition${dogNote}.
     Chinese webtoon aesthetic, warm lighting, high detail, 4k.`;
 
-  // Call Agnes AI API directly (CORS-enabled)
-  const response = await fetch('https://apihub.agnes-ai.com/v1/images/generations', {
+  // Pollinations AI: POST JSON or GET with prompt in URL
+  // Using GET for simplicity with seed for reproducibility
+  const seed = Date.now() + sceneIndex;
+  const encodedPrompt = encodeURIComponent(prompt);
+  const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&model=flux&nologo=true&seed=${seed}`;
+
+  // Fetch the image directly
+  const response = await fetch(url, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': 'Bearer sk-bk9fbXOJ8cZ1Gf1eJ4r6sM3tVU1'
-    },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'agnes-image-2.1-flash',
       prompt: prompt.trim(),
-      size: '1024x1024',
-      n: 1
+      width: 1024,
+      height: 1024,
+      model: 'flux',
+      nologo: true
     })
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
   }
 
-  const data = await response.json();
-
-  // Handle multiple response formats
-  if (data.data && data.data[0]) {
-    if (data.data[0].url) return data.data[0].url;
-    if (data.data[0].b64_json) return `data:image/png;base64,${data.data[0].b64_json}`;
-  }
-  if (data.url) return data.url;
-  if (data.b64_json) return `data:image/png;base64,${data.b64_json}`;
-
-  throw new Error('无法解析图片结果 — API 未返回图片数据');
+  // Pollinations returns image binary, not JSON
+  const blob = await response.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  return blobUrl;
 }
 
 // ---- Extract 5 scenes from the generated 甄嬛传 script for comic generation ----
