@@ -1255,14 +1255,9 @@ async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, 
     Panel-style composition${dogNote}.
     Chinese webtoon aesthetic, warm lighting, high detail, 4k.`;
 
-  // Pollinations AI: POST JSON or GET with prompt in URL
-  // Using GET for simplicity with seed for reproducibility
-  const seed = Date.now() + sceneIndex;
-  const encodedPrompt = encodeURIComponent(prompt);
-  const url = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=1024&model=flux&nologo=true&seed=${seed}`;
-
-  // Fetch the image directly
-  const response = await fetch(url, {
+  // Pollinations AI: POST only (GET returns 402)
+  // Use clean URL, send prompt in POST body only
+  const response = await fetch('https://image.pollinations.ai/prompt', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
