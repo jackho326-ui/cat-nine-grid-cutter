@@ -1232,7 +1232,7 @@ window.downloadScene = async function(index) {
   }
 };
 
-// ---- Generate image via Serverless API ----
+// ---- Generate image by calling Agnes AI API directly ----
 async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, sceneIndex) {
   const catDesc = names.map((name, i) => {
     const avatarIndex = Object.keys(avatarImages).find(k => parseInt(k) <= i && avatarImages[parseInt(k)]);
@@ -1255,42 +1255,37 @@ async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, 
     Panel-style composition${dogNote}.
     Chinese webtoon aesthetic, warm lighting, high detail, 4k.`;
 
-  // Call our Vercel Serverless Function (production) or fallback to direct API (dev)
-  let apiUrl;
-  try {
-    // Check if running on Vercel (production) or localhost (dev)
-    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
-    if (isLocal) {
-      // In local dev, try serverless endpoint first, then fall back to Hermes gateway
-      apiUrl = '/api/generate-image';
-    } else {
-      apiUrl = '/api/generate-image';
-    }
-  } catch (_) {
-    apiUrl = '/api/generate-image';
-  }
-
-  const response = await fetch(apiUrl, {
+  // Call Agnes AI API directly (CORS-enabled)
+  const response = await fetch('https://apihub.agnes-ai.com/v1/images/generations', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer sk-bk9fbXOJ8cZ1Gf1eJ4r6sM3tVU1'
+    },
     body: JSON.stringify({
-      prompt: prompt,
-      size: '1024x1024'
+      model: 'agnes-image-2.1-flash',
+      prompt: prompt.trim(),
+      size: '1024x1024',
+      n: 1
     })
   });
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    throw new Error(errorData.detail || errorData.error || `HTTP ${response.status}: ${response.statusText}`);
   }
 
   const data = await response.json();
-  if (!data.success) {
-    throw new Error(data.error || 'Image generation failed');
+
+  // Handle multiple response formats
+  if (data.data && data.data[0]) {
+    if (data.data[0].url) return data.data[0].url;
+    if (data.data[0].b64_json) return `data:image/png;base64,${data.data[0].b64_json}`;
   }
   if (data.url) return data.url;
   if (data.b64_json) return `data:image/png;base64,${data.b64_json}`;
-  throw new Error('无法解析图片结果');
+
+  throw new Error('无法解析图片结果 — API 未返回图片数据');
 }
 
 // ---- Extract 5 scenes from the generated 甄嬛传 script for comic generation ----
