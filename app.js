@@ -897,7 +897,16 @@ function updateComicFields(count) {
   comicTraitInputs.innerHTML = traitsHTML;
 }
 
-// Handle new avatar uploads (after dynamic update)
+// Handle clicking avatar-upload to trigger the hidden file input
+document.addEventListener('click', (e) => {
+  const uploadEl = e.target.closest('.avatar-upload');
+  if (uploadEl) {
+    const input = uploadEl.querySelector('input[type="file"]');
+    if (input) input.click();
+  }
+});
+
+// Handle file selection
 document.addEventListener('change', (e) => {
   if (e.target.classList.contains('avatar-input')) {
     const index = parseInt(e.target.dataset.index);
@@ -918,6 +927,8 @@ document.addEventListener('change', (e) => {
       if (uploadEl) uploadEl.style.display = 'none';
     };
     reader.readAsDataURL(file);
+    // Reset the input so the same file can be selected again
+    e.target.value = '';
   }
 });
 
