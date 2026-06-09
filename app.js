@@ -1258,44 +1258,80 @@ function generateCinemaPrompt(sceneDesc, names, traits, hasDog, style, sceneInde
   return prompts[sceneIndex] || prompts[0];
 }
 
+// ---- Image generation helpers ----
+function makeImageSeed(sceneIndex) {
+  if (window.crypto?.getRandomValues) {
+    const arr = new Uint32Array(1);
+    window.crypto.getRandomValues(arr);
+    return (arr[0] + (sceneIndex + 1) * 1000003) >>> 0;
+  }
+  return Math.floor(Math.random() * 2147483647) + (sceneIndex + 1) * 1000003;
+}
+
+function buildVariationDetails(sceneIndex, seed) {
+  const cameraAngles = [
+    'low-angle palace establishing shot',
+    'close-up reaction shot with expressive eyes',
+    'over-the-shoulder confrontation composition',
+    'dynamic diagonal action composition',
+    'warm wide ending shot with soft backlight'
+  ];
+  const palettes = [
+    'warm amber and cream palette',
+    'soft pink and gold palette',
+    'deep red and shadow palette',
+    'dramatic blue-orange contrast palette',
+    'healing golden sunlight palette'
+  ];
+  return `${cameraAngles[sceneIndex] || 'comic panel composition'}, ${palettes[sceneIndex] || 'warm cinematic palette'}, unique visual variation seed ${seed}, no visible text, no watermark`;
+}
+
+function pollinationsRequestBody(prompt, sceneIndex, model = 'flux') {
+  const seed = makeImageSeed(sceneIndex);
+  const variation = buildVariationDetails(sceneIndex, seed);
+  return {
+    prompt: `${prompt.trim()}\n${variation}`,
+    width: 1024,
+    height: 1024,
+    model,
+    seed,
+    nologo: true,
+    enhance: false,
+    safe: true
+  };
+}
+
+async function fetchPollinationsImage(prompt, sceneIndex, model = 'flux') {
+  const body = pollinationsRequestBody(prompt, sceneIndex, model);
+  console.info('[comic image request]', { sceneIndex, model: body.model, seed: body.seed, promptPreview: body.prompt.slice(0, 180) });
+
+  const response = await fetch(`https://image.pollinations.ai/prompt?ts=${Date.now()}&scene=${sceneIndex}&seed=${body.seed}`, {
+    method: 'POST',
+    cache: 'no-store',
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+    body: JSON.stringify(body)
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
+
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+}
+
 // ---- Cinema/Realistic image generator ----
 async function generateCinemaImage(sceneDesc, names, traits, hasDog, style, sceneIndex) {
   // Use hand-crafted cinematic prompts for the 5 scenes
   const prompt = generateCinemaPrompt(sceneDesc, names, traits, hasDog, style, sceneIndex);
 
-  const response = await fetch('https://image.pollinations.ai/prompt', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt: prompt,
-      width: 1024,
-      height: 1024,
-      model: 'flux-realism',
-      nologo: true
-    })
-  });
-
-  if (!response.ok) {
+  try {
+    return await fetchPollinationsImage(prompt, sceneIndex, 'flux-realism');
+  } catch (err) {
     // Fallback: try 'flux' model if 'flux-realism' fails
-    console.warn('flux-realism failed, falling back to flux...');
-    const r2 = await fetch('https://image.pollinations.ai/prompt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        prompt: prompt + ', photorealistic, 8k, ultra detailed',
-        width: 1024,
-        height: 1024,
-        model: 'flux',
-        nologo: true
-      })
-    });
-    if (!r2.ok) throw new Error(`HTTP ${r2.status}: ${r2.statusText}`);
-    const blob = await r2.blob();
-    return URL.createObjectURL(blob);
+    console.warn('flux-realism failed, falling back to flux...', err);
+    return fetchPollinationsImage(prompt + ', photorealistic, 8k, ultra detailed', sceneIndex, 'flux');
   }
-
-  const blob = await response.blob();
-  return URL.createObjectURL(blob);
 }
 
 // ---- Generate image via Pollinations AI (free, no API key needed) ----
@@ -1332,27 +1368,8 @@ async function generateComicSceneImage(sceneDesc, names, traits, hasDog, style, 
     Chinese webtoon aesthetic, warm lighting, high detail, 4k.`;
 
   // Pollinations AI: POST only (GET returns 402)
-  // Use clean URL, send prompt in POST body only
-  const response = await fetch('https://image.pollinations.ai/prompt', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      prompt: prompt.trim(),
-      width: 1024,
-      height: 1024,
-      model: 'flux',
-      nologo: true
-    })
-  });
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-  }
-
-  // Pollinations returns image binary, not JSON
-  const blob = await response.blob();
-  const blobUrl = URL.createObjectURL(blob);
-  return blobUrl;
+  // Add a different seed and cache-buster for every scene/request; otherwise Pollinations may reuse a cached image.
+  return fetchPollinationsImage(prompt, sceneIndex, 'flux');
 }
 
 // ---- Extract 5 scenes from the generated 甄嬛传 script for comic generation ----
